@@ -14,7 +14,7 @@ public class FileCollectionTests
             File.WriteAllText(Path.Combine(path, "SONG.OGG"), string.Empty);
             Directory.CreateDirectory(Path.Combine(path, "AlbumArt"));
 
-            var collection = new FileCollection(new DirectoryInfo(path));
+            var collection = new FileCollection(path);
 
             using (Assert.EnterMultipleScope())
             {
@@ -44,7 +44,7 @@ public class FileCollectionTests
             File.WriteAllText(Path.Combine(path, "notes.mid"), string.Empty);
             Directory.CreateDirectory(Path.Combine(path, "subdir"));
 
-            var collection = new FileCollection(new DirectoryInfo(path));
+            var collection = new FileCollection(path);
 
             using (Assert.EnterMultipleScope())
             {
@@ -73,7 +73,7 @@ public class FileCollectionTests
             File.WriteAllText(Path.Combine(path, "readme.txt"), string.Empty);
             Directory.CreateDirectory(Path.Combine(path, "subdir"));
 
-            var collection = new FileCollection(new DirectoryInfo(path));
+            var collection = new FileCollection(path);
 
             using (Assert.EnterMultipleScope())
             {
@@ -103,7 +103,7 @@ public class FileCollectionTests
             Directory.CreateDirectory(subdirectory);
             File.SetAttributes(subdirectory, FileAttributes.Directory | extra);
 
-            var collection = new FileCollection(new DirectoryInfo(path));
+            var collection = new FileCollection(path);
 
             Assert.That(collection.ContainsDirectory(), Is.True);
         }
@@ -129,7 +129,7 @@ public class FileCollectionTests
             File.WriteAllText(Path.Combine(path, "notes.mid"), string.Empty);
             File.WriteAllText(Path.Combine(path, "preview.txt"), string.Empty);
 
-            var collection = new FileCollection(new DirectoryInfo(path));
+            var collection = new FileCollection(path);
 
             using (Assert.EnterMultipleScope())
             {
@@ -155,7 +155,7 @@ public class FileCollectionTests
             File.WriteAllText(Path.Combine(path, "VoCaLs_1.OGG"), string.Empty);
             File.WriteAllText(Path.Combine(path, "Notes.mid"), string.Empty);
 
-            var collection = new FileCollection(new DirectoryInfo(path));
+            var collection = new FileCollection(path);
 
             var keys = collection.Select(node => node.Key).OrderBy(key => key).ToArray();
 

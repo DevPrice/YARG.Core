@@ -197,7 +197,8 @@ public class SongEntryFileSystemTests
         _fileSystem.AddFile(dta, Encoding.ASCII.GetBytes("(mysong (song (name \"songs/mysong/mysong\")))"));
         _fileSystem.AddFile(Path.Combine(ROOT, "mysong", midi), [0]);
 
-        bool created = UnpackedConsolePackageEntryGroup.Create(ROOT, new FileInfo(dta), string.Empty, out var group);
+        Assert.That(FileCollection.TryGetFile(dta, out var dtaInfo), Is.True);
+        bool created = UnpackedConsolePackageEntryGroup.Create(ROOT, in dtaInfo, string.Empty, out var group);
 
         using (Assert.EnterMultipleScope())
         {

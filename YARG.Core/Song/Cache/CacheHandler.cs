@@ -313,8 +313,8 @@ namespace YARG.Core.Song.Cache
             var tracker = new PlaylistTracker(fullDirectoryPlaylists, null);
             Parallel.ForEach(iniGroups, group =>
             {
-                var dirInfo = new DirectoryInfo(group.Directory);
-                ScanDirectory(dirInfo, group, tracker);
+                string directory = Path.GetFullPath(group.Directory);
+                ScanDirectory(directory, GetDirectoryName(directory), group, tracker);
             });
 
             Parallel.ForEach(conEntryGroups, group =>
@@ -631,24 +631,25 @@ namespace YARG.Core.Song.Cache
         /// If none of those, this will further traverse through any of the subdirectories present in this directory
         /// and process all the subfiles for potential CONs or SNGs.
         /// </summary>
-        /// <param name="directory">The directory instance to load and scan through</param>
+        /// <param name="directory">The full path of the directory to load and scan through</param>
+        /// <param name="name">The directory's own name</param>
         /// <param name="group">The group aligning to one of the base directories provided by the user</param>
         /// <param name="tracker">A tracker used to apply provide entries with default playlists</param>
-        private void ScanDirectory(DirectoryInfo directory, IniEntryGroup group, PlaylistTracker tracker)
+        private void ScanDirectory(string directory, string name, IniEntryGroup group, PlaylistTracker tracker)
         {
             try
             {
-                if (!FindOrMarkDirectory(directory.FullName))
+                if (!FindOrMarkDirectory(directory))
                 {
                     return;
                 }
 
-                switch (directory.Name)
+                switch (name)
                 {
                     case "songs_updates":
                     {
-                        var dta = new FileInfo(Path.Combine(directory.FullName, RBCONEntry.SONGUPDATES_DTA));
-                        if (dta.Exists && CONUpdateGroup.Create(directory.FullName, dta, out var updateGroup))
+                        if (FileCollection.TryGetFile(Path.Combine(directory, RBCONEntry.SONGUPDATES_DTA), out var dta)
+                            && CONUpdateGroup.Create(directory, in dta, out var updateGroup))
                         {
                             lock (updateGroups)
                             {
@@ -663,10 +664,9 @@ namespace YARG.Core.Song.Cache
                     // It's likely that directories of this name do not denote CON entires, so that's necessary.
                     case "songs":
                     {
-                        var dta = new FileInfo(Path.Combine(directory.FullName, CONEntryGroup.SONGS_DTA));
-                        if (dta.Exists)
+                        if (FileCollection.TryGetFile(Path.Combine(directory, CONEntryGroup.SONGS_DTA), out var dta))
                         {
-                            if (UnpackedConsolePackageEntryGroup.Create(directory.FullName, dta, tracker.Playlist, out var entryGroup))
+                            if (UnpackedConsolePackageEntryGroup.Create(directory, in dta, tracker.Playlist, out var entryGroup))
                             {
                                 lock (conEntryGroups)
                                 {
@@ -675,7 +675,7 @@ namespace YARG.Core.Song.Cache
                             }
                             else
                             {
-                                AddToBadSongs(directory.FullName, ScanResult.DirectoryError);
+                                AddToBadSongs(directory, ScanResult.DirectoryError);
                             }
                             return;
                         }
@@ -683,7 +683,7 @@ namespace YARG.Core.Song.Cache
                     }
                 }
 
-                if (!collectionCache.TryGetValue(directory.FullName, out var collection))
+                if (!collectionCache.TryGetValue(directory, out var collection))
                 {
                     collection = new FileCollection(directory);
                 }
@@ -694,10 +694,10 @@ namespace YARG.Core.Song.Cache
                     AddToBadSongs(collection.Directory, ScanResult.DuplicateFilesFound);
                 }
 
-                if (directory.Name == "songs_upgrades")
+                if (name == "songs_upgrades")
                 {
                     if (collection.FindFile(RBProUpgrade.UPGRADES_DTA, out var dta)
-                    && UnpackedCONUpgradeGroup.Create(collection, dta, out var upgradeGroup))
+                    && UnpackedCONUpgradeGroup.Create(collection, in dta, out var upgradeGroup))
                     {
                         lock (unpackedUpgradeGroups)
                         {
@@ -715,35 +715,46 @@ namespace YARG.Core.Song.Cache
                     // organize their collection. So as a service, we warn them in the badsongs.txt.
                     if (collection.ContainsDirectory())
                     {
-                        AddToBadSongs(directory.FullName, ScanResult.LooseChart_Warning);
+                        AddToBadSongs(directory, ScanResult.LooseChart_Warning);
                     }
                 }
                 else
                 {
-                    var nextTracker = tracker.Append(directory.Name);
+                    var nextTracker = tracker.Append(name);
                     Parallel.ForEach(collection, entry =>
                     {
-                        switch (entry.Value)
+                        if (entry.Value.Stat.IsDirectory)
                         {
-                            case DirectoryInfo directory:
-                                ScanDirectory(directory, group, nextTracker);
-                                break;
-                            case FileInfo file:
-                                ScanFile(file, group, nextTracker);
-                                break;
+                            ScanDirectory(entry.Value.FullName, entry.Value.Name, group, nextTracker);
+                        }
+                        else
+                        {
+                            ScanFile(entry.Value, group, nextTracker);
                         }
                     });
                 }
             }
             catch (PathTooLongException)
             {
-                YargLogger.LogFormatError("Path {0} is too long for the file system!", directory.FullName);
-                AddToBadSongs(directory.FullName, ScanResult.PathTooLong);
+                YargLogger.LogFormatError("Path {0} is too long for the file system!", directory);
+                AddToBadSongs(directory, ScanResult.PathTooLong);
             }
             catch (Exception e)
             {
-                YargLogger.LogException(e, $"Error while scanning directory {directory.FullName}!");
+                YargLogger.LogException(e, $"Error while scanning directory {directory}!");
             }
+        }
+
+        /// <summary>
+        /// The name DirectoryInfo reports for a full path: its last segment, or the whole path for a root
+        /// </summary>
+        private static string GetDirectoryName(string fullPath)
+        {
+            if (Path.GetPathRoot(fullPath) == fullPath)
+            {
+                return fullPath;
+            }
+            return Path.GetFileName(fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         }
 
         /// <summary>
@@ -752,7 +763,7 @@ namespace YARG.Core.Song.Cache
         /// <param name="info">The info for provided file</param>
         /// <param name="group">The group aligning to one of the base directories provided by the user</param>
         /// <param name="tracker">A tracker used to apply provide entries with default playlists</param>
-        private void ScanFile(FileInfo info, IniEntryGroup group, in PlaylistTracker tracker)
+        private void ScanFile(in YARGFileSystemEntry info, IniEntryGroup group, in PlaylistTracker tracker)
         {
             string filename = info.FullName;
             try
@@ -760,13 +771,13 @@ namespace YARG.Core.Song.Cache
                 // Ensures only fully downloaded unmarked files are processed
                 if (FindOrMarkFile(filename))
                 {
-                    string ext = info.Extension;
+                    string ext = Path.GetExtension(info.Name);
                     if (ext == ".sng" || ext == ".yargsong")
                     {
                         using var sngFile = SngFile.TryLoadFromFile(info.FullName, true);
                         if (sngFile.IsLoaded)
                         {
-                            ScanSngFile(in sngFile, info, group, tracker.Playlist);
+                            ScanSngFile(in sngFile, in info, group, tracker.Playlist);
                         }
                         else
                         {
@@ -775,7 +786,7 @@ namespace YARG.Core.Song.Cache
                     }
                     else
                     {
-                        var result = CreateCONGroup(info, tracker.Playlist);
+                        var result = CreateCONGroup(in info, tracker.Playlist);
                         if (result.Upgrades != null)
                         {
                             // Ensures any con entries pulled from cache are removed for re-evaluation
@@ -827,7 +838,7 @@ namespace YARG.Core.Song.Cache
 
                 try
                 {
-                    var entry = UnpackedIniEntry.ProcessNewEntry(collection.Directory, chart, IniSubEntry.CHART_FILE_TYPES[i].Format, hasIni ? ini : null, defaultPlaylist);
+                    var entry = UnpackedIniEntry.ProcessNewEntry(collection.Directory, in chart, IniSubEntry.CHART_FILE_TYPES[i].Format, hasIni ? ini : null, defaultPlaylist);
                     if (entry)
                     {
                         AddEntry(entry.Value);
@@ -859,7 +870,7 @@ namespace YARG.Core.Song.Cache
         /// <param name="sngFile">The sngfile to search through</param>
         /// <param name="group">The group aligning to one of the base directories provided by the user</param>
         /// <param name="defaultPlaylist">The default directory-based playlist to use for any successful entry</param>
-        private void ScanSngFile(in SngFile sngFile, FileInfo info, IniEntryGroup group, string defaultPlaylist)
+        private void ScanSngFile(in SngFile sngFile, in YARGFileSystemEntry info, IniEntryGroup group, string defaultPlaylist)
         {
             int i = !sngFile.Modifiers.IsEmpty() ? 0 : 2;
             while (i < 3)
@@ -878,7 +889,7 @@ namespace YARG.Core.Song.Cache
 
                 try
                 {
-                    var entry = SngEntry.ProcessNewEntry(in sngFile, in chart, info, IniSubEntry.CHART_FILE_TYPES[i].Format, defaultPlaylist);
+                    var entry = SngEntry.ProcessNewEntry(in sngFile, in chart, in info, IniSubEntry.CHART_FILE_TYPES[i].Format, defaultPlaylist);
                     if (entry.HasValue)
                     {
                         AddEntry(entry.Value);
@@ -1060,8 +1071,7 @@ namespace YARG.Core.Song.Cache
                 goto Invalidate;
             }
 
-            var dtaInfo = new FileInfo(Path.Combine(directory, RBCONEntry.SONGUPDATES_DTA));
-            if (!dtaInfo.Exists)
+            if (!FileCollection.TryGetFile(Path.Combine(directory, RBCONEntry.SONGUPDATES_DTA), out var dtaInfo))
             {
                 goto Invalidate;
             }
@@ -1069,7 +1079,7 @@ namespace YARG.Core.Song.Cache
             FindOrMarkDirectory(directory);
 
             // Will add the update group to the shared list on success
-            if (CONUpdateGroup.Create(directory, dtaInfo, out var group) && group.Root.LastWriteTime == dtaLastWrite)
+            if (CONUpdateGroup.Create(directory, in dtaInfo, out var group) && group.Root.LastWriteTime == dtaLastWrite)
             {
                 lock (updateGroups)
                 {
@@ -1174,13 +1184,12 @@ namespace YARG.Core.Song.Cache
                 goto Invalidate;
             }
 
-            var dirInfo = new DirectoryInfo(directory);
-            if (!dirInfo.Exists)
+            if (!YARGFileSystem.DirectoryExists(directory))
             {
                 goto Invalidate;
             }
 
-            var collection = new FileCollection(dirInfo);
+            var collection = new FileCollection(Path.GetFullPath(directory));
             if (!collection.FindFile(RBProUpgrade.UPGRADES_DTA, out var dta))
             {
                 // We don't *mark* the directory to allow the "New Entries" process
@@ -1194,14 +1203,14 @@ namespace YARG.Core.Song.Cache
 
             FindOrMarkDirectory(directory);
 
-            if (UnpackedCONUpgradeGroup.Create(in collection, dta, out var group))
+            if (UnpackedCONUpgradeGroup.Create(in collection, in dta, out var group))
             {
                 lock (unpackedUpgradeGroups)
                 {
                     unpackedUpgradeGroups.Add(group);
                 }
 
-                if (dta.LastWriteTime == dtaLastWritten)
+                if (AbridgedFileInfo.RawLastWrite(in dta.Stat) == dtaLastWritten)
                 {
                     var songsToInvalidate = new Dictionary<string, DateTime>();
                     songsToInvalidate.EnsureCapacity(group.Upgrades.Count);
@@ -1285,8 +1294,7 @@ namespace YARG.Core.Song.Cache
                 goto Invalidate;
             }
 
-            var info = new FileInfo(filename);
-            if (!info.Exists)
+            if (!FileCollection.TryGetFile(filename, out var info))
             {
                 goto Invalidate;
             }
@@ -1294,7 +1302,7 @@ namespace YARG.Core.Song.Cache
             FindOrMarkFile(filename);
 
             string defaultPlaylist = ConstructPlaylist(filename, baseGroup.Directory, fullDirectoryPlaylists);
-            var result = CreateCONGroup(info, defaultPlaylist);
+            var result = CreateCONGroup(in info, defaultPlaylist);
             if (result.Upgrades != null && result.Upgrades.Root.LastWriteTime == conLastWrite)
             {
                 var songsToInvalidate = new HashSet<string>();
@@ -1418,21 +1426,19 @@ namespace YARG.Core.Song.Cache
 
                 if (group == null)
                 {
-                    var info = new FileInfo(location);
-                    if (info.Exists)
+                    if (FileCollection.TryGetFile(location, out var info))
                     {
                         FindOrMarkFile(location);
-                        group = CreateCONGroup(info, defaultPlaylist).Entries;
+                        group = CreateCONGroup(in info, defaultPlaylist).Entries;
                     }
                 }
             }
             else
             {
-                var dtaInfo = new FileInfo(Path.Combine(location, CONEntryGroup.SONGS_DTA));
-                if (dtaInfo.Exists)
+                if (FileCollection.TryGetFile(Path.Combine(location, CONEntryGroup.SONGS_DTA), out var dtaInfo))
                 {
                     FindOrMarkDirectory(location);
-                    if (UnpackedConsolePackageEntryGroup.Create(location, dtaInfo, defaultPlaylist, out var unpacked))
+                    if (UnpackedConsolePackageEntryGroup.Create(location, in dtaInfo, defaultPlaylist, out var unpacked))
                     {
                         lock (conEntryGroups)
                         {
@@ -1604,7 +1610,7 @@ namespace YARG.Core.Song.Cache
         /// <param name="info">The file info for the possible CONFile</param>
         /// <param name="defaultPlaylist">The playlist to use for any entries generated from the CON (if it is one)</param>
         /// <returns>A PackedCONGroup instance on success; <see langword="null"/> otherwise</returns>
-        private PackedGroupResult CreateCONGroup(FileInfo info, string defaultPlaylist)
+        private PackedGroupResult CreateCONGroup(in YARGFileSystemEntry info, string defaultPlaylist)
         {
             var result = default(PackedGroupResult);
             try
@@ -1613,7 +1619,7 @@ namespace YARG.Core.Song.Cache
                 var listings = CONFile.TryParseListings(info.FullName, stream);
                 if (listings != null)
                 {
-                    var abridged = new AbridgedFileInfo(info);
+                    var abridged = new AbridgedFileInfo(in info);
                     try
                     {
                         if (PackedCONEntryGroup.Create(stream, listings, in abridged, defaultPlaylist, out result.Entries))
