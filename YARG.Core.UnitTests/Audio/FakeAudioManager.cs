@@ -2,7 +2,7 @@
 
 namespace YARG.Core.UnitTests.Audio;
 
-internal sealed class FakeAudioManager : AudioManager
+internal class FakeAudioManager : AudioManager
 {
     protected internal override ReadOnlySpan<string> SupportedFormats => [];
 

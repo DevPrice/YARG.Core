@@ -7,7 +7,7 @@ namespace YARG.Core.IO
     public sealed class YargMoggReadStream : Stream
     {
         private const int MATRIXSIZE = 16;
-        private readonly FileStream _fileStream;
+        private readonly Stream _fileStream;
         private readonly long _length;
 
         private readonly byte[] _baseEncryptionMatrix = new byte[MATRIXSIZE];
@@ -49,7 +49,7 @@ namespace YARG.Core.IO
 
         public YargMoggReadStream(string path)
         {
-            _fileStream = new FileStream(path, FileMode.Open, FileAccess.Read);
+            _fileStream = YARGFileSystem.OpenRead(path);
             _length = _fileStream.Length - MATRIXSIZE;
 
             // Get the encryption matrix

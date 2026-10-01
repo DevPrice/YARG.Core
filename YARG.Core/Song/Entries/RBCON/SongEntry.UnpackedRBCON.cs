@@ -41,9 +41,9 @@ namespace YARG.Core.Song
                 }
 
                 string moggPath = Path.Combine(songDirectory, entry._subName + ".mogg");
-                if (File.Exists(moggPath))
+                if (YARGFileSystem.FileExists(moggPath))
                 {
-                    using var moggStream = new FileStream(moggPath, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+                    using var moggStream = YARGFileSystem.OpenRead(moggPath, 1);
                     var moggResult = ValidateMoggHeader(moggStream);
                     if (moggResult != ScanResult.Success)
                     {

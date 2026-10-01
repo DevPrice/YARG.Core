@@ -326,11 +326,11 @@ namespace YARG.Core.Song.Cache
                     if (mods.UpdateDirectoryAndDtaLastWrite != null)
                     {
                         string moggPath = Path.Combine(mods.UpdateDirectoryAndDtaLastWrite.Value.FullName, node.Key, node.Key + ".mogg");
-                        if (File.Exists(moggPath))
+                        if (YARGFileSystem.FileExists(moggPath))
                         {
                             try
                             {
-                                using var stream = new FileStream(moggPath, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+                                using var stream = YARGFileSystem.OpenRead(moggPath, 1);
                                 var moggResult = RBCONEntry.ValidateMoggHeader(stream);
                                 if (moggResult != ScanResult.Success)
                                 {

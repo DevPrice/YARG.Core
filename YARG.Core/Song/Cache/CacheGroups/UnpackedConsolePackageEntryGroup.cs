@@ -28,11 +28,11 @@ namespace YARG.Core.Song.Cache
                         continue;
                     }
                     string subname = entry.Location[6..entry.Location.IndexOf('/', 6)];
-                    if (File.Exists(Path.Combine(directory, subname, subname + ".mid.edat")))
+                    if (YARGFileSystem.FileExists(Path.Combine(directory, subname, subname + ".mid.edat")))
                     {
                         return UnpackedPKGEntryGroup.Create(directory, dtaInfo, defaultPlaylist, out group);
                     }
-                    if (File.Exists(Path.Combine(directory, subname, subname + ".mid")))
+                    if (YARGFileSystem.FileExists(Path.Combine(directory, subname, subname + ".mid")))
                     {
                         return UnpackedCONEntryGroup.Create(directory, dtaInfo, defaultPlaylist, out group);
                     }

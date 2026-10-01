@@ -106,7 +106,7 @@ namespace YARG.Core.Song
                 var stemName = stem + format;
                 if (fileDictionary.TryGetValue(stemName, out var file))
                 {
-                    var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+                    var stream = YARGFileSystem.OpenRead(file, 1);
                     if (mixer.AddChannel(stream, stemEnum))
                     {
                         // No duplicates
@@ -125,7 +125,7 @@ namespace YARG.Core.Song
             foreach (var filename in enableCensoring ? CLEAN_PREVIEW_FILES : PREVIEW_FILES)
             {
                 var audioFile = Path.Combine(_location, filename);
-                if (File.Exists(audioFile))
+                if (YARGFileSystem.FileExists(audioFile))
                 {
                     return GlobalAudioHandler.LoadCustomFile(audioFile, speed, 0, true, SongStem.Preview);
                 }
@@ -167,13 +167,13 @@ namespace YARG.Core.Song
             string censorSuffix = enableCensoring ? CLEAN_BACKGROUND_SUFFIX : EXPLICIT_BACKGROUND_SUFFIX;
             if (subFiles.TryGetValue("bg.yarground", out var file) && !excludeYarground)
             {
-                var stream = File.OpenRead(file);
+                var stream = YARGFileSystem.OpenRead(file);
                 return new BackgroundResult(BackgroundType.Yarground, stream);
             }
 
             if (subFiles.TryGetValue(_video, out var video))
             {
-                var stream = File.OpenRead(video);
+                var stream = YARGFileSystem.OpenRead(video);
                 return new BackgroundResult(BackgroundType.Video, stream);
             }
 
@@ -183,12 +183,12 @@ namespace YARG.Core.Song
                 {
                     if (subFiles.TryGetValue(stem + censorSuffix + format, out file))
                     {
-                        var stream = File.OpenRead(file);
+                        var stream = YARGFileSystem.OpenRead(file);
                         return new BackgroundResult(BackgroundType.Video, stream);
                     }
                     if (subFiles.TryGetValue(stem + format, out file))
                     {
-                        var stream = File.OpenRead(file);
+                        var stream = YARGFileSystem.OpenRead(file);
                         return new BackgroundResult(BackgroundType.Video, stream);
                     }
                 }
@@ -213,7 +213,7 @@ namespace YARG.Core.Song
             {
                 if (name.EndsWith(".milo_xbox") || name.EndsWith(".milo"))
                 {
-                    if (subFiles.TryGetValue(name, out var file) && File.Exists(file))
+                    if (subFiles.TryGetValue(name, out var file) && YARGFileSystem.FileExists(file))
                     {
                         return FixedArray.LoadFile(file);
                     }
@@ -230,7 +230,7 @@ namespace YARG.Core.Song
             {
                 if (name.EndsWith(".voc"))
                 {
-                    if (subFiles.TryGetValue(name, out var file) && File.Exists(file))
+                    if (subFiles.TryGetValue(name, out var file) && YARGFileSystem.FileExists(file))
                     {
                         return FixedArray.LoadFile(file);
                     }
@@ -251,12 +251,12 @@ namespace YARG.Core.Song
             string iniPath = Path.Combine(_location, "song.ini");
             if (_iniLastWrite.HasValue)
             {
-                if (!AbridgedFileInfo.Validate(iniPath, _iniLastWrite.Value) && File.Exists(iniPath))
+                if (!AbridgedFileInfo.Validate(iniPath, _iniLastWrite.Value) && YARGFileSystem.FileExists(iniPath))
                 {
                     return null;
                 }
             }
-            else if (File.Exists(iniPath))
+            else if (YARGFileSystem.FileExists(iniPath))
             {
                 return null;
             }
@@ -268,11 +268,14 @@ namespace YARG.Core.Song
         private Dictionary<string, string> GetSubFiles()
         {
             Dictionary<string, string> files = new(StringComparer.OrdinalIgnoreCase);
-            if (Directory.Exists(_location))
+            if (YARGFileSystem.DirectoryExists(_location))
             {
-                foreach (var file in Directory.EnumerateFiles(_location))
+                foreach (var entry in YARGFileSystem.Enumerate(_location))
                 {
-                    files.Add(file[(_location.Length + 1)..].ToLower(), file);
+                    if (!entry.Stat.IsDirectory)
+                    {
+                        files.Add(entry.Name.ToLower(), entry.FullName);
+                    }
                 }
             }
             return files;
@@ -327,7 +330,7 @@ namespace YARG.Core.Song
                     return null;
                 }
             }
-            else if (File.Exists(iniFile))
+            else if (YARGFileSystem.FileExists(iniFile))
             {
                 return null;
             }
