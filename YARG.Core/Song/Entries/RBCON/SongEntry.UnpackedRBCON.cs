@@ -34,8 +34,8 @@ namespace YARG.Core.Song
                 entry._subName = location.Value[6..location.Value.IndexOf('/', 6)];
 
                 string songDirectory = Path.Combine(parameters.Root.FullName, entry._subName);
-                var midiInfo = new FileInfo(Path.Combine(songDirectory, entry._subName + ".mid"));
-                if (!midiInfo.Exists)
+                string midiPath = Path.Combine(songDirectory, entry._subName + ".mid");
+                if (!AbridgedFileInfo.TryStatFile(midiPath, out var midiStat))
                 {
                     return new ScanUnexpected(ScanResult.MissingCONMidi);
                 }
@@ -55,14 +55,14 @@ namespace YARG.Core.Song
                     return new ScanUnexpected(ScanResult.MoggError);
                 }
 
-                using var mainMidi = FixedArray.LoadFile(midiInfo.FullName);
+                using var mainMidi = FixedArray.LoadFile(midiPath);
 
                 var result = ScanMidis(entry, mainMidi);
                 if (result != ScanResult.Success)
                 {
                     return new ScanUnexpected(result);
                 }
-                entry._midiLastWrite = AbridgedFileInfo.NormalizedLastWrite(midiInfo);
+                entry._midiLastWrite = AbridgedFileInfo.NormalizedLastWrite(in midiStat);
                 entry.SetSortStrings();
                 return entry;
             }
@@ -77,14 +77,13 @@ namespace YARG.Core.Song
         {
             string subname = stream.ReadString();
             string midiPath = Path.Combine(root.FullName, subname, subname + ".mid");
-            var midiInfo = new FileInfo(midiPath);
-            if (!midiInfo.Exists)
+            if (!AbridgedFileInfo.TryStatFile(midiPath, out var midiStat))
             {
                 return null;
             }
 
             var midiLastWrite = DateTime.FromBinary(stream.Read<long>(Endianness.Little));
-            if (midiLastWrite != midiInfo.LastWriteTime)
+            if (midiLastWrite != AbridgedFileInfo.RawLastWrite(in midiStat))
             {
                 return null;
             }
