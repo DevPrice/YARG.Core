@@ -16,7 +16,7 @@ namespace YARG.Core.IO
         public const int BYTES_PER_HASH_ENTRY   = 0x18;
         public const int NEXT_BLOCK_HASH_OFFSET = 0x15;
 
-        private readonly FileStream       _filestream;
+        private readonly Stream           _filestream;
         private readonly int              _length;
         private readonly int              _initialOffset;
         private readonly FixedArray<byte> _dataBuffer;
@@ -157,7 +157,7 @@ namespace YARG.Core.IO
             }
         }
 
-        private CONFileStream(FileStream stream, int length, int offset, FixedArray<byte> buffer, FixedArray<long> locations)
+        private CONFileStream(Stream stream, int length, int offset, FixedArray<byte> buffer, FixedArray<long> locations)
         {
             _filestream = stream;
             _length = length;
@@ -183,7 +183,7 @@ namespace YARG.Core.IO
 
         public static CONFileStream CreateStream(string path, CONFileListing listing)
         {
-            var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+            var stream = YARGFileSystem.OpenRead(path, 1);
             try
             {
                 FixedArray<byte> dataBuffer;
@@ -277,7 +277,7 @@ namespace YARG.Core.IO
 
         public static FixedArray<byte> LoadFile(string path, CONFileListing listing)
         {
-            using var filestream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+            using var filestream = YARGFileSystem.OpenRead(path, 1);
             return LoadFile(filestream, listing);
         }
 
