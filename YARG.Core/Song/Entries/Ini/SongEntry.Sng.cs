@@ -361,9 +361,9 @@ namespace YARG.Core.Song
             _version = version;
         }
 
-        public static ScanExpected<SngEntry> ProcessNewEntry(in SngFile sng, in SngFileListing listing, FileInfo info, ChartFormat format, string defaultPlaylist)
+        public static ScanExpected<SngEntry> ProcessNewEntry(in SngFile sng, in SngFileListing listing, in YARGFileSystemEntry info, ChartFormat format, string defaultPlaylist)
         {
-            var entry = new SngEntry(sng.Version, info.FullName, AbridgedFileInfo.NormalizedLastWrite(info), format);
+            var entry = new SngEntry(sng.Version, info.FullName, AbridgedFileInfo.NormalizedLastWrite(in info.Stat), format);
             entry._metadata.Playlist = defaultPlaylist;
 
             using var file = sng.LoadAllBytes(in listing);

@@ -287,21 +287,21 @@ namespace YARG.Core.Song
             _iniLastWrite = iniLastWrite;
         }
 
-        public static ScanExpected<UnpackedIniEntry> ProcessNewEntry(string directory, FileInfo chartInfo, ChartFormat format, FileInfo? iniFile, string defaultPlaylist)
+        public static ScanExpected<UnpackedIniEntry> ProcessNewEntry(string directory, in YARGFileSystemEntry chartInfo, ChartFormat format, YARGFileSystemEntry? iniFile, string defaultPlaylist)
         {
             IniModifierCollection iniModifiers;
             DateTime? iniLastWrite = default;
-            if (iniFile != null)
+            if (iniFile.HasValue)
             {
-                iniModifiers = SongIniHandler.ReadSongIniFile(iniFile.FullName);
-                iniLastWrite = AbridgedFileInfo.NormalizedLastWrite(iniFile);
+                iniModifiers = SongIniHandler.ReadSongIniFile(iniFile.Value.FullName);
+                iniLastWrite = AbridgedFileInfo.NormalizedLastWrite(iniFile.Value.Stat);
             }
             else
             {
                 iniModifiers = new();
             }
 
-            var entry = new UnpackedIniEntry(directory, AbridgedFileInfo.NormalizedLastWrite(chartInfo), in iniLastWrite, format);
+            var entry = new UnpackedIniEntry(directory, AbridgedFileInfo.NormalizedLastWrite(in chartInfo.Stat), in iniLastWrite, format);
             entry._metadata.Playlist = defaultPlaylist;
 
             using var file = FixedArray.LoadFile(chartInfo.FullName);

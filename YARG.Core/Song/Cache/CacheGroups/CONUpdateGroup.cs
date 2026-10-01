@@ -23,13 +23,13 @@ namespace YARG.Core.Song.Cache
 
         private CONUpdateGroup() { }
 
-        public static bool Create(string directory, FileInfo dtaInfo, out CONUpdateGroup group)
+        public static bool Create(string directory, in YARGFileSystemEntry dtaInfo, out CONUpdateGroup group)
         {
             try
             {
                 group = new CONUpdateGroup()
                 {
-                    _root = new AbridgedFileInfo(directory, AbridgedFileInfo.NormalizedLastWrite(dtaInfo)),
+                    _root = new AbridgedFileInfo(directory, AbridgedFileInfo.NormalizedLastWrite(in dtaInfo.Stat)),
                 };
 
                 using var data = FixedArray.LoadFile(dtaInfo.FullName);

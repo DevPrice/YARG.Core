@@ -6,19 +6,20 @@ using YARG.Core.IO;
 
 namespace YARG.Core.Song.Cache
 {
-    internal readonly struct FileCollection : IEnumerable<KeyValuePair<string, FileSystemInfo>>
+    internal readonly struct FileCollection : IEnumerable<KeyValuePair<string, YARGFileSystemEntry>>
     {
-        private readonly Dictionary<string, FileSystemInfo> _entries;
+        private readonly Dictionary<string, YARGFileSystemEntry> _entries;
         public readonly string Directory;
         public readonly bool ContainedDupes;
 
-        public FileCollection(DirectoryInfo directory)
+        /// <param name="directory">A full path, used as given for <see cref="Directory"/> and child paths</param>
+        public FileCollection(string directory)
         {
-            Directory = directory.FullName;
-            _entries = new Dictionary<string, FileSystemInfo>(StringComparer.Ordinal);
+            Directory = directory;
+            _entries = new Dictionary<string, YARGFileSystemEntry>(StringComparer.Ordinal);
             var dupes = new HashSet<string>();
 
-            foreach (var entry in directory.EnumerateFileSystemInfos("*", LocalFileSystem.ENUMERATION_OPTIONS))
+            foreach (var entry in YARGFileSystem.Enumerate(directory))
             {
                 string name = entry.Name.ToLowerInvariant();
                 if (!_entries.TryAdd(name, entry))
@@ -35,31 +36,21 @@ namespace YARG.Core.Song.Cache
             }
         }
 
-        public bool FindFile(string name, out FileInfo file)
+        public bool FindFile(string name, out YARGFileSystemEntry file)
         {
-            file = null!;
-            if (_entries.TryGetValue(name, out var entry))
-            {
-                file = (entry as FileInfo)!;
-            }
-            return file != null!;
+            return _entries.TryGetValue(name, out file) && !file.Stat.IsDirectory;
         }
 
-        public bool FindDirectory(string name, out DirectoryInfo directory)
+        public bool FindDirectory(string name, out YARGFileSystemEntry directory)
         {
-            directory = null!;
-            if (_entries.TryGetValue(name, out var entry))
-            {
-                directory = (entry as DirectoryInfo)!;
-            }
-            return directory != null!;
+            return _entries.TryGetValue(name, out directory) && directory.Stat.IsDirectory;
         }
 
         public bool ContainsDirectory()
         {
             foreach (var entry in _entries)
             {
-                if (entry.Value is DirectoryInfo)
+                if (entry.Value.Stat.IsDirectory)
                 {
                     return true;
                 }
@@ -79,12 +70,27 @@ namespace YARG.Core.Song.Cache
             return false;
         }
 
-        public Dictionary<string, FileSystemInfo>.Enumerator GetEnumerator()
+        /// <summary>
+        /// Stats a file outside of any collection, as new FileInfo(path) would: FullName is the full path, and a
+        /// directory at the path does not count as existing
+        /// </summary>
+        public static bool TryGetFile(string path, out YARGFileSystemEntry file)
+        {
+            if (!AbridgedFileInfo.TryStatFile(path, out var stat))
+            {
+                file = default;
+                return false;
+            }
+            file = new YARGFileSystemEntry(Path.GetFileName(path), Path.GetFullPath(path), in stat);
+            return true;
+        }
+
+        public Dictionary<string, YARGFileSystemEntry>.Enumerator GetEnumerator()
         {
             return _entries.GetEnumerator();
         }
 
-        IEnumerator<KeyValuePair<string, FileSystemInfo>> IEnumerable<KeyValuePair<string, FileSystemInfo>>.GetEnumerator()
+        IEnumerator<KeyValuePair<string, YARGFileSystemEntry>> IEnumerable<KeyValuePair<string, YARGFileSystemEntry>>.GetEnumerator()
         {
             return _entries.GetEnumerator();
         }
