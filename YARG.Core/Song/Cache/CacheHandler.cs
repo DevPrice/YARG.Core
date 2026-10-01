@@ -183,7 +183,7 @@ namespace YARG.Core.Song.Cache
 
         private readonly Dictionary<string, CONModification> conModifications = new();
 
-        private readonly HashSet<string> preScannedPaths = new();
+        private readonly HashSet<string> preScannedPaths = new(SongPaths.Comparer);
         private readonly SortedDictionary<string, ScanResult> badSongs = new();
         #endregion
 
@@ -196,7 +196,7 @@ namespace YARG.Core.Song.Cache
             iniGroups = new(baseDirectories.Count);
             foreach (string dir in baseDirectories)
             {
-                if (!string.IsNullOrEmpty(dir) && !iniGroups.Exists(group => { return group.Directory == dir; }))
+                if (!string.IsNullOrEmpty(dir) && !iniGroups.Exists(group => { return SongPaths.AreEqual(group.Directory, dir); }))
                 {
                     iniGroups.Add(new IniEntryGroup(dir));
                 }
@@ -748,13 +748,20 @@ namespace YARG.Core.Song.Cache
         /// <summary>
         /// The name DirectoryInfo reports for a full path: its last segment, or the whole path for a root
         /// </summary>
+        /// <remarks>
+        /// GetPathRoot drops the trailing separator of a share root ("\\server\songs\" has the root
+        /// "\\server\songs"), so roots compare without one. A share root then gets its whole path, as a drive root
+        /// does, rather than whatever Path.GetFileName makes of it: "" on .NET (and from DirectoryInfo), but a
+        /// runtime that splits the root would yield "songs" and scan the share as a console "songs" folder.
+        /// </remarks>
         private static string GetDirectoryName(string fullPath)
         {
-            if (Path.GetPathRoot(fullPath) == fullPath)
+            string trimmed = SongPaths.TrimEndSeparators(fullPath);
+            if (trimmed.Length <= SongPaths.TrimEndSeparators(Path.GetPathRoot(fullPath) ?? string.Empty).Length)
             {
                 return fullPath;
             }
-            return Path.GetFileName(fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            return Path.GetFileName(trimmed);
         }
 
         /// <summary>
@@ -914,7 +921,7 @@ namespace YARG.Core.Song.Cache
 
         public const int SIZEOF_DATETIME = 8;
         private HashSet<string> invalidSongsInCache = new();
-        private Dictionary<string, FileCollection> collectionCache = new();
+        private Dictionary<string, FileCollection> collectionCache = new(SongPaths.Comparer);
         private Dictionary<string, QuickCONMods> cacheCONModifications = new();
         private Dictionary<string, Lazy<List<CONFileListing>?>> cacheCONListings = new();
 
@@ -1421,7 +1428,7 @@ namespace YARG.Core.Song.Cache
             {
                 lock (conEntryGroups)
                 {
-                    group = conEntryGroups.Find(node => node.Root.FullName == location);
+                    group = conEntryGroups.Find(node => SongPaths.AreEqual(node.Root.FullName, location));
                 }
 
                 if (group == null)
@@ -1519,11 +1526,7 @@ namespace YARG.Core.Song.Cache
         {
             foreach (var group in iniGroups)
             {
-                if (path.StartsWith(group.Directory) &&
-                    // Ensures directories with similar names (previously separate bases)
-                    // that are consolidated in-game to a single base directory
-                    // don't have conflicting "relative path" issues
-                    (path.Length == group.Directory.Length || path[group.Directory.Length] == Path.DirectorySeparatorChar))
+                if (SongPaths.IsUnderDirectory(path, group.Directory))
                 {
                     baseGroup = group;
                     return true;
@@ -1664,10 +1667,12 @@ namespace YARG.Core.Song.Cache
         /// <param name="filename">The path for the current file</param>
         /// <param name="baseDirectory">One of the base directories provided by the user</param>
         /// <returns>The default playlist to potentially use</returns>
-        private string ConstructPlaylist(string filename, string baseDirectory, bool fullDirectoryPlaylists)
+        internal static string ConstructPlaylist(string filename, string baseDirectory, bool fullDirectoryPlaylists)
         {
             string directory = Path.GetDirectoryName(filename);
-            if (directory.Length == baseDirectory.Length)
+            // A drive or share root may end in a separator, which the length of its subdirectories doesn't count
+            int baseLength = SongPaths.TrimEndSeparators(baseDirectory).Length;
+            if (SongPaths.TrimEndSeparators(directory).Length <= baseLength)
             {
                 return "Unknown Playlist";
             }
@@ -1676,7 +1681,7 @@ namespace YARG.Core.Song.Cache
             {
                 return Path.GetFileName(directory);
             }
-            return directory[(baseDirectory.Length + 1)..];
+            return directory[(baseLength + 1)..];
         }
         #endregion
     }

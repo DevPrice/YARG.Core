@@ -139,12 +139,12 @@ public class FileSystemScanTests
         }
     }
 
-    private static List<SongEntry> Flatten(SongCache cache)
+    internal static List<SongEntry> Flatten(SongCache cache)
     {
         return cache.Entries.Values.SelectMany(list => list).ToList();
     }
 
-    private static string CreateDta(string nodeName, string songName)
+    internal static string CreateDta(string nodeName, string songName)
     {
         return $$"""
                  ({{nodeName}}
@@ -160,14 +160,14 @@ public class FileSystemScanTests
                  """;
     }
 
-    private static byte[] CreateMogg()
+    internal static byte[] CreateMogg()
     {
         byte[] mogg = new byte[CONFileStream.BYTES_PER_BLOCK];
         BitConverter.GetBytes(RBCONEntry.UNENCRYPTED_MOGG).CopyTo(mogg, 0);
         return mogg;
     }
 
-    private static byte[] CreateSng(byte[] midi)
+    internal static byte[] CreateSng(byte[] midi)
     {
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream);
@@ -236,7 +236,7 @@ public class FileSystemScanTests
     /// <summary>
     /// A CON holding songs/songs.dta and one song's midi and mogg, each stored in consecutive blocks
     /// </summary>
-    private static byte[] CreateCon(byte[] midi)
+    internal static byte[] CreateCon(byte[] midi)
     {
         byte[] dta = Encoding.UTF8.GetBytes(CreateDta("mysong", "Packed Song"));
         byte[] mogg = CreateMogg();
@@ -313,7 +313,7 @@ public class FileSystemScanTests
         destination[0x37] = (byte) length;
     }
 
-    private static string GetTestMidiPath()
+    internal static string GetTestMidiPath()
     {
         return Path.GetFullPath(Path.Combine(TestContext.CurrentContext.TestDirectory,
             "../../../../Parsing/Test Charts/test.mid"));
