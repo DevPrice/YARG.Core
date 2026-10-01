@@ -42,16 +42,16 @@ namespace YARG.Core.Song
                     return new ScanUnexpected(ScanResult.MissingCONMidi);
                 }
                 // First three bytes should be 4E 50 44 if encrypted
-                using var midiStream = new FileStream(midiInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+                using var midiStream = YARGFileSystem.OpenRead(midiInfo.FullName, 1);
                 if ((midiStream.Read<int>(Endianness.Big) & 0xFFFFFF00) == ENCRYPTED_EDAT_MAGIC)
                 {
                     return new ScanUnexpected(ScanResult.EdatMidiEncrypted);
                 }
 
                 string moggPath = Path.Combine(songDirectory, entry._subName + ".mogg");
-                if (File.Exists(moggPath))
+                if (YARGFileSystem.FileExists(moggPath))
                 {
-                    using var moggStream = new FileStream(moggPath, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+                    using var moggStream = YARGFileSystem.OpenRead(moggPath, 1);
                     var moggResult = ValidateMoggHeader(moggStream);
                     if (moggResult != ScanResult.Success)
                     {

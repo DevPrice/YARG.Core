@@ -164,7 +164,7 @@ public class PreviewContextTests
         public override FixedArray<byte>? LoadVocData() => null;
     }
 
-    private sealed class FakeStemMixer : StemMixer
+    internal sealed class FakeStemMixer : StemMixer
     {
         public FakeStemMixer(AudioManager manager, double length) : base("test-preview", manager, clampStemVolume: false)
         {

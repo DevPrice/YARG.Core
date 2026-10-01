@@ -31,7 +31,7 @@ namespace YARG.Core.Song
             if (image == null)
             {
                 string path = Path.Combine(_root.FullName, _subName, "gen", _subName + "_keep" + fileExtension);
-                if (File.Exists(path))
+                if (YARGFileSystem.FileExists(path))
                 {
                     image = DXTImageLoader(path);
                 }
@@ -43,9 +43,9 @@ namespace YARG.Core.Song
         {
             string yarground = Path.Combine(_root.FullName, _subName, YARGROUND_FULLNAME);
             string censorSuffix = enableCensoring ? "_clean" : "_explicit";
-            if (File.Exists(yarground) && !excludeYarground)
+            if (YARGFileSystem.FileExists(yarground) && !excludeYarground)
             {
-                var stream = File.OpenRead(yarground);
+                var stream = YARGFileSystem.OpenRead(yarground);
                 return new BackgroundResult(BackgroundType.Yarground, stream);
             }
 
@@ -55,15 +55,15 @@ namespace YARG.Core.Song
                 foreach (var ext in VIDEO_EXTENSIONS)
                 {
                     string censoredVideoFile = fileBase + censorSuffix + ext;
-                    if (File.Exists(censoredVideoFile))
+                    if (YARGFileSystem.FileExists(censoredVideoFile))
                     {
-                        var stream = File.OpenRead(censoredVideoFile);
+                        var stream = YARGFileSystem.OpenRead(censoredVideoFile);
                         return new BackgroundResult(BackgroundType.Video, stream);
                     }
                     string videoFile = fileBase + ext;
-                    if (File.Exists(videoFile))
+                    if (YARGFileSystem.FileExists(videoFile))
                     {
-                        var stream = File.OpenRead(videoFile);
+                        var stream = YARGFileSystem.OpenRead(videoFile);
                         return new BackgroundResult(BackgroundType.Video, stream);
                     }
                 }
@@ -76,7 +76,7 @@ namespace YARG.Core.Song
                 foreach (var ext in IMAGE_EXTENSIONS)
                 {
                     string censoredImageFile = fileBase + censorSuffix + ext;
-                    if (File.Exists(censoredImageFile))
+                    if (YARGFileSystem.FileExists(censoredImageFile))
                     {
                         var image = YARGImage.Load(censoredImageFile);
                         if (image != null)
@@ -85,7 +85,7 @@ namespace YARG.Core.Song
                         }
                     }
                     string imageFile = fileBase + ext;
-                    if (File.Exists(imageFile))
+                    if (YARGFileSystem.FileExists(imageFile))
                     {
                         var image = YARGImage.Load(imageFile);
                         if (image != null)
@@ -104,7 +104,7 @@ namespace YARG.Core.Song
             if (data == null)
             {
                 string path = Path.Combine(_root.FullName, _subName, "gen", _subName + fileExtension);
-                if (File.Exists(path))
+                if (YARGFileSystem.FileExists(path))
                 {
                     data = FixedArray.LoadFile(path);
                 }
@@ -118,7 +118,7 @@ namespace YARG.Core.Song
             if (data == null)
             {
                 var path = Path.Combine(_root.FullName, _subName, _subName + ".voc");
-                if (File.Exists(path))
+                if (YARGFileSystem.FileExists(path))
                 {
                     data = FixedArray.LoadFile(path);
                 }
@@ -129,7 +129,7 @@ namespace YARG.Core.Song
         protected FixedArray<byte>? GetMainMidiData(string fileExtension)
         {
             string path = Path.Combine(_root.FullName, _subName, _subName + fileExtension);
-            return File.Exists(path) ? FixedArray.LoadFile(path) : null;
+            return YARGFileSystem.FileExists(path) ? FixedArray.LoadFile(path) : null;
         }
 
         protected override Stream? GetMoggStream()
@@ -138,9 +138,9 @@ namespace YARG.Core.Song
             if (stream == null)
             {
                 string path = Path.Combine(_root.FullName, _subName, _subName + ".mogg");
-                if (File.Exists(path))
+                if (YARGFileSystem.FileExists(path))
                 {
-                    stream = File.OpenRead(path);
+                    stream = YARGFileSystem.OpenRead(path);
                 }
             }
             return stream;
