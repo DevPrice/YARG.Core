@@ -17,7 +17,7 @@ namespace YARG.Core.IO
         /// <returns>The instance carrying the loaded data</returns>
         public static FixedArray<byte> LoadFile(string filename)
         {
-            using var stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+            using var stream = YARGFileSystem.OpenRead(filename, 1);
             return Read(stream, stream.Length);
         }
 
