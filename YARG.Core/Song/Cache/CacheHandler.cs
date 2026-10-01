@@ -1217,7 +1217,7 @@ namespace YARG.Core.Song.Cache
                     unpackedUpgradeGroups.Add(group);
                 }
 
-                if (AbridgedFileInfo.RawLastWrite(in dta.Stat) == dtaLastWritten)
+                if (group.Root.LastWriteTime == dtaLastWritten)
                 {
                     var songsToInvalidate = new Dictionary<string, DateTime>();
                     songsToInvalidate.EnsureCapacity(group.Upgrades.Count);
