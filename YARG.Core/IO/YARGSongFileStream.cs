@@ -15,7 +15,7 @@ namespace YARG.Core.IO
             (byte) 'S', (byte) 'O', (byte) 'N', (byte) 'G'
         };
 
-        private readonly FileStream _stream;
+        private readonly Stream _stream;
         // These are very important values required to properly
         // decrypt the first layer of encryption (Crawford multi-
         // value cipher).
@@ -36,6 +36,16 @@ namespace YARG.Core.IO
         public override bool CanWrite => false;
 
         public static bool TryLoad(FileStream filestream, out YARGSongFileStream yargStream)
+        {
+            return TryLoad((Stream) filestream, out yargStream);
+        }
+
+        /// <summary>
+        /// Reads the YARGSONG header from the start of <paramref name="filestream"/>, which must be seekable.
+        /// On success, <paramref name="yargStream"/> takes ownership of <paramref name="filestream"/> and
+        /// disposes it; on failure, the caller keeps ownership.
+        /// </summary>
+        public static bool TryLoad(Stream filestream, out YARGSongFileStream yargStream)
         {
             yargStream = null!;
             Span<byte> signature = stackalloc byte[FILE_SIGNATURE.Length];
@@ -88,17 +98,23 @@ namespace YARG.Core.IO
                     values[3] += j << 2;
                 }
             }
-            yargStream = new YARGSongFileStream(filestream.Name, values);
+            yargStream = new YARGSongFileStream(filestream, values);
             return true;
         }
 
         public YARGSongFileStream(string filename, int[] values)
+            : this(new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 1), values)
+        {
+        }
+
+        /// <summary>
+        /// Wraps <paramref name="stream"/>, which must be seekable, and takes ownership of it.
+        /// </summary>
+        public YARGSongFileStream(Stream stream, int[] values)
         {
             _values = values;
-            _stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 1)
-            {
-                Position = HEADER_SIZE
-            };
+            _stream = stream;
+            _stream.Position = HEADER_SIZE;
         }
 
         public override int Read(byte[] buffer, int offset, int count)
@@ -147,9 +163,25 @@ namespace YARG.Core.IO
             _stream.Flush();
         }
 
+        /// <summary>
+        /// Opens an independent stream over the same file. Only supported when wrapping a <see cref="FileStream"/>.
+        /// </summary>
         public YARGSongFileStream Clone()
         {
-            return new YARGSongFileStream(_stream.Name, _values);
+            if (_stream is not FileStream filestream)
+            {
+                throw new NotSupportedException("Only a YARGSongFileStream over a FileStream can be cloned");
+            }
+            return new YARGSongFileStream(filestream.Name, _values);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _stream.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 }

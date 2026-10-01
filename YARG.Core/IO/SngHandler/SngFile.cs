@@ -93,14 +93,14 @@ namespace YARG.Core.IO
 
         public readonly void Dispose()
         {
-            _tracker.Dispose();
+            _tracker?.Dispose();
         }
 
         private static readonly byte[] SNGPKG = { (byte) 'S', (byte) 'N', (byte) 'G', (byte) 'P', (byte) 'K', (byte) 'G' };
         public static SngFile TryLoadFromFile(string filename, bool loadMetadata)
         {
-            using var tracker = new SngTracker();
             var filestream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+            using var tracker = new SngTracker { Stream = filestream };
             if (YARGSongFileStream.TryLoad(filestream, out var yargStream))
             {
                 yargStream.Position = SNGPKG.Length;
@@ -114,7 +114,6 @@ namespace YARG.Core.IO
                 {
                     return default;
                 }
-                tracker.Stream = filestream;
             }
 
             SngFile sng = new()
