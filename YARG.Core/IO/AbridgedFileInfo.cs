@@ -20,12 +20,23 @@ namespace YARG.Core.IO
         public readonly DateTime LastWriteTime;
 
         public AbridgedFileInfo(string file)
-            : this(new FileInfo(file)) {}
+        {
+            FullName = Path.GetFullPath(file);
+            LastWriteTime = YARGFileSystem.TryStat(file, out var stat)
+                ? NormalizedLastWrite(in stat)
+                : MissingFileTime();
+        }
 
         public AbridgedFileInfo(FileInfo info)
         {
             FullName = info.FullName;
             LastWriteTime = NormalizedLastWrite(info);
+        }
+
+        public AbridgedFileInfo(in YARGFileSystemEntry entry)
+        {
+            FullName = entry.FullName;
+            LastWriteTime = NormalizedLastWrite(in entry.Stat);
         }
 
         /// <summary>
@@ -60,7 +71,7 @@ namespace YARG.Core.IO
 
         public bool Exists()
         {
-            return File.Exists(FullName);
+            return YARGFileSystem.FileExists(FullName);
         }
 
         public bool IsStillValid()
@@ -70,7 +81,37 @@ namespace YARG.Core.IO
 
         public static DateTime NormalizedLastWrite(FileInfo info)
         {
-            return info.LastWriteTime > info.CreationTime ? info.LastWriteTime : info.CreationTime;
+            return Normalize(info.LastWriteTimeUtc, info.CreationTimeUtc);
+        }
+
+        public static DateTime NormalizedLastWrite(in YARGFileStat stat)
+        {
+            return Normalize(stat.LastWriteTimeUtc, stat.CreationTimeUtc);
+        }
+
+        /// <summary>
+        /// The local last-write time alone, as FileInfo.LastWriteTime reports it, for the cache checks that
+        /// have always compared it rather than <see cref="NormalizedLastWrite(in YARGFileStat)"/>
+        /// </summary>
+        public static DateTime RawLastWrite(in YARGFileStat stat)
+        {
+            return stat.LastWriteTimeUtc.ToLocalTime();
+        }
+
+        // The cache stores local times (FileInfo.LastWriteTime) through ToBinary and compares them exactly, so
+        // UTC stats convert first and compare as local times, exactly as FileInfo-derived values did.
+        // FileInfo.LastWriteTime is LastWriteTimeUtc.ToLocalTime() on both .NET and Mono.
+        private static DateTime Normalize(DateTime lastWriteUtc, DateTime creationUtc)
+        {
+            var lastWrite = lastWriteUtc.ToLocalTime();
+            var creation = creationUtc.ToLocalTime();
+            return lastWrite > creation ? lastWrite : creation;
+        }
+
+        // What FileInfo reports for every time of a missing file: 1601-01-01 UTC in local time
+        private static DateTime MissingFileTime()
+        {
+            return DateTime.FromFileTimeUtc(0).ToLocalTime();
         }
 
         /// <summary>
@@ -86,22 +127,26 @@ namespace YARG.Core.IO
         /// </summary>
         public static bool TryParseInfo(string file, ref FixedArrayStream stream, out AbridgedFileInfo abridged)
         {
-            var info = new FileInfo(file);
-            if (!info.Exists)
+            if (!TryStatFile(file, out var stat))
             {
                 stream.Position += sizeof(long);
                 abridged = default;
                 return false;
             }
 
-            abridged = new AbridgedFileInfo(info);
+            abridged = new AbridgedFileInfo(Path.GetFullPath(file), NormalizedLastWrite(in stat));
             return abridged.LastWriteTime == DateTime.FromBinary(stream.Read<long>(Endianness.Little));
         }
 
         public static bool Validate(string file, in DateTime lastWrite)
         {
-            var info = new FileInfo(file);
-            return info.Exists && NormalizedLastWrite(info) == lastWrite;
+            return TryStatFile(file, out var stat) && NormalizedLastWrite(in stat) == lastWrite;
+        }
+
+        /// <returns>Whether a file, not a directory, exists at the path, as FileInfo.Exists reports</returns>
+        public static bool TryStatFile(string path, out YARGFileStat stat)
+        {
+            return YARGFileSystem.TryStat(path, out stat) && !stat.IsDirectory;
         }
     }
 }
