@@ -56,7 +56,9 @@ public sealed class InMemoryFileSystem : IYARGFileSystem
             if (separator > 0 && string.Equals(path[..separator], directory, StringComparison.OrdinalIgnoreCase))
             {
                 TryStatNormalized(path, out var stat);
-                entries.Add(new YARGFileSystemEntry(path[(separator + 1)..], path, in stat));
+                // Like DirectoryInfo, full names keep the caller's spelling of the directory
+                string name = path[(separator + 1)..];
+                entries.Add(new YARGFileSystemEntry(name, directory + path[separator] + name, in stat));
             }
         }
         return entries;
