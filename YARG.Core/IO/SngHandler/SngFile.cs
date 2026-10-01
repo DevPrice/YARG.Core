@@ -99,9 +99,9 @@ namespace YARG.Core.IO
         private static readonly byte[] SNGPKG = { (byte) 'S', (byte) 'N', (byte) 'G', (byte) 'P', (byte) 'K', (byte) 'G' };
         public static SngFile TryLoadFromFile(string filename, bool loadMetadata)
         {
-            var filestream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+            var filestream = YARGFileSystem.OpenRead(filename, 1);
             using var tracker = new SngTracker { Stream = filestream };
-            if (YARGSongFileStream.TryLoad(filestream, out var yargStream))
+            if (YARGSongFileStream.TryLoad(filestream, filename, out var yargStream))
             {
                 yargStream.Position = SNGPKG.Length;
                 tracker.Stream = yargStream;
@@ -142,9 +142,9 @@ namespace YARG.Core.IO
 
         public static bool ValidateMatch(string filename, uint versionToMatch)
         {
-            using var filestream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+            using var filestream = YARGFileSystem.OpenRead(filename, 1);
             Stream basestream;
-            if (YARGSongFileStream.TryLoad(filestream, out var yargStream))
+            if (YARGSongFileStream.TryLoad(filestream, filename, out var yargStream))
             {
                 yargStream.Position = SNGPKG.Length;
                 basestream = yargStream;

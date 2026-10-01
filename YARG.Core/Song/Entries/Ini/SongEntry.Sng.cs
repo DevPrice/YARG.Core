@@ -112,10 +112,13 @@ namespace YARG.Core.Song
                 return new BackgroundResult(BackgroundType.Yarground, sngFile.CreateStream(YARGROUND_FULLNAME, in listing));
             }
 
-            string file = Path.ChangeExtension(_location, YARGROUND_EXTENSION);
-            if (File.Exists(file) && !excludeYarground)
+            if (!excludeYarground)
             {
-                return new BackgroundResult(BackgroundType.Yarground, File.OpenRead(file));
+                var yarground = OpenExternalYarground(_location);
+                if (yarground != null)
+                {
+                    return new BackgroundResult(BackgroundType.Yarground, yarground);
+                }
             }
 
             if (sngFile.TryGetListing(_video, out listing))
@@ -140,18 +143,10 @@ namespace YARG.Core.Song
                 }
             }
 
-            foreach (var format in VIDEO_EXTENSIONS)
+            var video = OpenExternalVideo(_location, censorSuffix);
+            if (video != null)
             {
-                var censorSpecificPath = Path.ChangeExtension(_location + censorSuffix, format);
-                if (File.Exists(censorSpecificPath))
-                {
-                    return new BackgroundResult(BackgroundType.Video, File.OpenRead(censorSpecificPath));
-                }
-                string path = Path.ChangeExtension(_location, format);
-                if (File.Exists(path))
-                {
-                    return new BackgroundResult(BackgroundType.Video, File.OpenRead(path));
-                }
+                return new BackgroundResult(BackgroundType.Video, video);
             }
 
             if (sngFile.TryGetListing(_background, out listing) || TryGetRandomBackgroundImage(sngFile.Listings, enableCensoring, out listing))
@@ -171,11 +166,11 @@ namespace YARG.Core.Song
                 var censorSpecificPath = Path.ChangeExtension(_location + censorSuffix, format);
                 string normalPath = Path.ChangeExtension(_location, format);
                 string path;
-                if (File.Exists(censorSpecificPath))
+                if (YARGFileSystem.FileExists(censorSpecificPath))
                 {
                     path = censorSpecificPath;
                 }
-                else if (File.Exists(normalPath))
+                else if (YARGFileSystem.FileExists(normalPath))
                 {
                     path = normalPath;
                 }
@@ -190,6 +185,30 @@ namespace YARG.Core.Song
                     return new BackgroundResult(image);
                 }
                 YargLogger.LogFormatError("Failed to load background image {0}", censorSpecificPath);
+            }
+            return null;
+        }
+
+        internal static Stream? OpenExternalYarground(string location)
+        {
+            string file = Path.ChangeExtension(location, YARGROUND_EXTENSION);
+            return YARGFileSystem.FileExists(file) ? YARGFileSystem.OpenRead(file) : null;
+        }
+
+        internal static Stream? OpenExternalVideo(string location, string censorSuffix)
+        {
+            foreach (var format in VIDEO_EXTENSIONS)
+            {
+                var censorSpecificPath = Path.ChangeExtension(location + censorSuffix, format);
+                if (YARGFileSystem.FileExists(censorSpecificPath))
+                {
+                    return YARGFileSystem.OpenRead(censorSpecificPath);
+                }
+                string path = Path.ChangeExtension(location, format);
+                if (YARGFileSystem.FileExists(path))
+                {
+                    return YARGFileSystem.OpenRead(path);
+                }
             }
             return null;
         }
