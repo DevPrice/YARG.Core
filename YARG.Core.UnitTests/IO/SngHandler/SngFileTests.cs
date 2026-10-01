@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using NUnit.Framework;
 using YARG.Core.IO;
+using YARG.Core.Song;
 
 namespace YARG.Core.UnitTests.IO.SngHandler;
 
@@ -9,6 +10,7 @@ public class SngFileTests
     private const uint Version = 7;
     private const string ListingName = "notes.chart";
     private const int YargSongHeaderSize = 24;
+    private const string FakeRoot = @"\\fake\songs";
 
     private static readonly byte[] Payload = "sng-payload"u8.ToArray();
 
@@ -98,6 +100,111 @@ public class SngFileTests
         finally
         {
             File.Delete(path);
+        }
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public void TryLoadFromFile_ReadsThroughRegisteredFileSystem(bool yargSongWrapped)
+    {
+        const string PATH = FakeRoot + @"\song.sng";
+        byte[] plain = CreateSng();
+        var fileSystem = new InMemoryFileSystem();
+        fileSystem.AddFile(PATH, yargSongWrapped ? WrapInYargSong(plain) : plain);
+        YARGFileSystem.Register(FakeRoot, fileSystem);
+        try
+        {
+            using (var sng = SngFile.TryLoadFromFile(PATH, true))
+            {
+                Assert.That(sng.IsLoaded, Is.True);
+                Assert.That(sng.Version, Is.EqualTo(Version));
+                Assert.That(sng.TryGetListing(ListingName, out var listing), Is.True);
+                using var data = sng.LoadAllBytes(listing);
+                Assert.That(data.ReadOnlySpan.ToArray(), Is.EqualTo(Payload));
+            }
+
+            Assert.That(SngFile.ValidateMatch(PATH, Version), Is.True);
+            Assert.That(SngFile.ValidateMatch(PATH, Version + 1), Is.False);
+            Assert.That(fileSystem.OpenedPaths, Is.EqualTo([PATH, PATH, PATH]));
+        }
+        finally
+        {
+            YARGFileSystem.Unregister(FakeRoot);
+        }
+    }
+
+    [Test]
+    public void YARGSongFileStream_CloneReopensThroughRegisteredFileSystem()
+    {
+        const string PATH = FakeRoot + @"\song.sng";
+        byte[] plain = CreateSng();
+        var fileSystem = new InMemoryFileSystem();
+        fileSystem.AddFile(PATH, WrapInYargSong(plain));
+        YARGFileSystem.Register(FakeRoot, fileSystem);
+        try
+        {
+            Assert.That(YARGSongFileStream.TryLoad(YARGFileSystem.OpenRead(PATH), PATH, out var yargStream), Is.True);
+            using (yargStream)
+            {
+                using (var clone = yargStream.Clone())
+                {
+                    Assert.That(ReadAll(clone), Is.EqualTo(plain));
+                }
+                using (var cloneOfClone = new YARGSongFileStream(PATH, [0, 0, 0, 0]).Clone())
+                {
+                    Assert.That(cloneOfClone.Length, Is.EqualTo(plain.Length));
+                }
+                Assert.That(ReadAll(yargStream), Is.EqualTo(plain));
+            }
+            Assert.That(fileSystem.OpenedPaths, Is.EqualTo([PATH, PATH, PATH, PATH]));
+        }
+        finally
+        {
+            YARGFileSystem.Unregister(FakeRoot);
+        }
+    }
+
+    [Test]
+    public void YARGSongFileStream_CloneWithoutPathThrows()
+    {
+        Assert.That(YARGSongFileStream.TryLoad(new MemoryStream(WrapInYargSong(CreateSng())), out var yargStream), Is.True);
+        using (yargStream)
+        {
+            Assert.That(() => yargStream.Clone(), Throws.InstanceOf<NotSupportedException>());
+        }
+    }
+
+    [Test]
+    public void SngEntrySidecars_ProbeThroughRegisteredFileSystem()
+    {
+        const string SNG = FakeRoot + @"\song.sng";
+        byte[] mp4 = [1];
+        byte[] yarground = [2];
+        var fileSystem = new InMemoryFileSystem();
+        fileSystem.AddFile(FakeRoot + @"\song.mov", [0]);
+        fileSystem.AddFile(FakeRoot + @"\song.mp4", mp4);
+        fileSystem.AddFile(FakeRoot + @"\song.yarground", yarground);
+        YARGFileSystem.Register(FakeRoot, fileSystem);
+        try
+        {
+            using (var video = SngEntry.OpenExternalVideo(SNG, "_clean"))
+            {
+                Assert.That(video, Is.Not.Null);
+                Assert.That(ReadAll(video!), Is.EqualTo(mp4));
+            }
+            using (var background = SngEntry.OpenExternalYarground(SNG))
+            {
+                Assert.That(background, Is.Not.Null);
+                Assert.That(ReadAll(background!), Is.EqualTo(yarground));
+            }
+            Assert.That(fileSystem.OpenedPaths, Is.EqualTo([FakeRoot + @"\song.mp4", FakeRoot + @"\song.yarground"]));
+
+            Assert.That(SngEntry.OpenExternalVideo(FakeRoot + @"\other.sng", "_clean"), Is.Null);
+            Assert.That(SngEntry.OpenExternalYarground(FakeRoot + @"\other.sng"), Is.Null);
+        }
+        finally
+        {
+            YARGFileSystem.Unregister(FakeRoot);
         }
     }
 
