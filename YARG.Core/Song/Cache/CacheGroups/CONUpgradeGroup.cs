@@ -103,7 +103,7 @@ namespace YARG.Core.Song.Cache
                     string name = YARGDTAReader.GetNameOfNode(ref container, true);
                     if (collection.FindFile(name.ToLower() + RBProUpgrade.UPGRADES_MIDI_EXT, out var info))
                     {
-                        group._upgrades[name] = (container, new UnpackedRBProUpgrade(name, AbridgedFileInfo.RawLastWrite(in info.Stat), group._root));
+                        group._upgrades[name] = (container, new UnpackedRBProUpgrade(name, AbridgedFileInfo.NormalizedLastWrite(in info.Stat), group._root));
                     }
                     YARGDTAReader.EndNode(ref container);
                 }
