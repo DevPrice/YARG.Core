@@ -91,7 +91,7 @@ namespace YARG.Core.Song
             }
 
             var midiLastWrite = DateTime.FromBinary(stream.Read<long>(Endianness.Little));
-            if (midiLastWrite != AbridgedFileInfo.RawLastWrite(in midiStat))
+            if (midiLastWrite != AbridgedFileInfo.NormalizedLastWrite(in midiStat))
             {
                 return null;
             }
