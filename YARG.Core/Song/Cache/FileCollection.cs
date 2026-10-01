@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using YARG.Core.IO;
 
 namespace YARG.Core.Song.Cache
 {
@@ -11,22 +12,13 @@ namespace YARG.Core.Song.Cache
         public readonly string Directory;
         public readonly bool ContainedDupes;
 
-        // Attribute maps to Remote Storage files (ex. oneDrive) that are not locally present
-        private const FileAttributes RECALL_ON_DATA_ACCESS = (FileAttributes) 0x00400000;
-        private static readonly EnumerationOptions OPTIONS = new()
-        {
-            MatchType = MatchType.Win32,
-            AttributesToSkip = RECALL_ON_DATA_ACCESS,
-            IgnoreInaccessible = false,
-        };
-
         public FileCollection(DirectoryInfo directory)
         {
             Directory = directory.FullName;
             _entries = new Dictionary<string, FileSystemInfo>(StringComparer.Ordinal);
             var dupes = new HashSet<string>();
 
-            foreach (var entry in directory.EnumerateFileSystemInfos("*", OPTIONS))
+            foreach (var entry in directory.EnumerateFileSystemInfos("*", LocalFileSystem.ENUMERATION_OPTIONS))
             {
                 string name = entry.Name.ToLowerInvariant();
                 if (!_entries.TryAdd(name, entry))
