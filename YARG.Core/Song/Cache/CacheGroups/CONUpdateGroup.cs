@@ -41,10 +41,9 @@ namespace YARG.Core.Song.Cache
                     if (!group._updates.TryGetValue(name, out var node))
                     {
                         DateTime? lastWriteTime = null;
-                        var info = new FileInfo(Path.Combine(group._root.FullName, name, name + "_update.mid"));
-                        if (info.Exists)
+                        if (AbridgedFileInfo.TryStatFile(Path.Combine(group._root.FullName, name, name + "_update.mid"), out var stat))
                         {
-                            lastWriteTime = AbridgedFileInfo.NormalizedLastWrite(info);
+                            lastWriteTime = AbridgedFileInfo.NormalizedLastWrite(in stat);
                         }
                         group._updates.Add(name, node = (new List<YARGTextContainer<byte>>(), lastWriteTime));
                     }
