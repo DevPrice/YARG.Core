@@ -90,6 +90,36 @@ public class FileCollectionTests
         }
     }
 
+    [TestCase(FileAttributes.ReadOnly)]
+    [TestCase(FileAttributes.Archive)]
+    [TestCase(FileAttributes.NotContentIndexed)]
+    public void ContainsDirectory_CountsDirectoriesWithExtraAttributes(FileAttributes extra)
+    {
+        string path = CreateTempDirectory();
+        string subdirectory = Path.Combine(path, "subdir");
+        try
+        {
+            File.WriteAllText(Path.Combine(path, "notes.mid"), string.Empty);
+            Directory.CreateDirectory(subdirectory);
+            File.SetAttributes(subdirectory, FileAttributes.Directory | extra);
+
+            var collection = new FileCollection(new DirectoryInfo(path));
+
+            Assert.That(collection.ContainsDirectory(), Is.True);
+        }
+        finally
+        {
+            if (Directory.Exists(subdirectory))
+            {
+                File.SetAttributes(subdirectory, FileAttributes.Directory);
+            }
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, true);
+            }
+        }
+    }
+
     [Test]
     public void ContainsAudio_ReturnsFalseWhenNoSupportedAudioFilesArePresent()
     {

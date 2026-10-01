@@ -59,7 +59,7 @@ namespace YARG.Core.Song.Cache
         {
             foreach (var entry in _entries)
             {
-                if (entry.Value.Attributes == FileAttributes.Directory)
+                if (entry.Value is DirectoryInfo)
                 {
                     return true;
                 }
