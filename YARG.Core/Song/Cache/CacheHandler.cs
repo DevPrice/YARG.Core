@@ -1574,7 +1574,7 @@ namespace YARG.Core.Song.Cache
         {
             try
             {
-                using var filestream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, CON_HEADER_BUFFERSIZE);
+                using var filestream = YARGFileSystem.OpenRead(filename, CON_HEADER_BUFFERSIZE);
                 return CONFile.TryParseListings(filename, filestream);
             }
             catch (FileNotFoundException)
@@ -1609,7 +1609,7 @@ namespace YARG.Core.Song.Cache
             var result = default(PackedGroupResult);
             try
             {
-                using var stream = new FileStream(info.FullName, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+                using var stream = YARGFileSystem.OpenRead(info.FullName, 1);
                 var listings = CONFile.TryParseListings(info.FullName, stream);
                 if (listings != null)
                 {

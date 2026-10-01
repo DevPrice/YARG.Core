@@ -1,6 +1,7 @@
 using System.Text;
 using NUnit.Framework;
 using YARG.Core.IO;
+using YARG.Core.Song.Cache;
 
 namespace YARG.Core.UnitTests.IO.ConHandler;
 
@@ -10,6 +11,7 @@ public class ConHandlerTests
     private const int FileTableBlockCountPosition = 0x37C;
     private const int FileTableFirstBlockPosition = 0x37E;
     private const int SizeOfFileListing = 0x40;
+    private const string FAKE_ROOT = @"\\fake\con-handler";
 
     [Test]
     public void TryParseListings_ParsesDirectoryHierarchyAndContiguousFile()
@@ -322,6 +324,72 @@ public class ConHandlerTests
         }
     }
 
+    [Test]
+    public void PathOverloads_ReadThroughRegisteredFileSystem()
+    {
+        const string PATH = FAKE_ROOT + @"\Songs\Pack";
+        byte[] expected = "con-data"u8.ToArray();
+        var fileSystem = new InMemoryFileSystem();
+        fileSystem.AddFile(PATH, CreateHierarchyImage(expected));
+
+        YARGFileSystem.Register(FAKE_ROOT, fileSystem);
+        try
+        {
+            List<CONFileListing>? listings;
+            using (var stream = YARGFileSystem.OpenRead(PATH, 1))
+            {
+                listings = CONFile.TryParseListings(PATH, stream);
+            }
+            Assert.That(listings, Is.Not.Null);
+            Assert.That(listings!.FindListing("songs/track.mid", out var listing), Is.True);
+
+            using var loaded = CONFileStream.LoadFile(PATH, listing);
+            using var streamed = CONFileStream.CreateStream(PATH, listing);
+            var streamedBytes = new byte[expected.Length];
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(loaded.ReadOnlySpan.ToArray(), Is.EqualTo(expected));
+                Assert.That(streamed.Read(streamedBytes, 0, streamedBytes.Length), Is.EqualTo(expected.Length));
+                Assert.That(streamedBytes, Is.EqualTo(expected));
+                Assert.That(fileSystem.OpenedPaths, Is.EqualTo([PATH, PATH, PATH]));
+            }
+        }
+        finally
+        {
+            YARGFileSystem.Unregister(FAKE_ROOT);
+        }
+    }
+
+    [Test]
+    public void PackedCONEntryGroup_InitScanOpensThroughRegisteredFileSystem()
+    {
+        const string PATH = FAKE_ROOT + @"\Songs\Pack";
+        byte[] image = CreateHierarchyImage("(testsong (name \"Test Song\"))"u8.ToArray(), "songs.dta");
+        var fileSystem = new InMemoryFileSystem();
+        fileSystem.AddFile(PATH, image);
+
+        YARGFileSystem.Register(FAKE_ROOT, fileSystem);
+        try
+        {
+            using var stream = new MemoryStream(image, writable: false);
+            var listings = CONFile.TryParseListings(PATH, stream);
+            Assert.That(listings, Is.Not.Null);
+
+            var root = new AbridgedFileInfo(PATH, DateTime.UnixEpoch);
+            Assert.That(PackedCONEntryGroup.Create(stream, listings!, in root, "Playlist", out var group), Is.True);
+            using (group!)
+            {
+                group!.InitScan();
+                Assert.That(fileSystem.OpenedPaths, Is.EqualTo([PATH]));
+            }
+        }
+        finally
+        {
+            YARGFileSystem.Unregister(FAKE_ROOT);
+        }
+    }
+
     [TestCase(0, 0, CONFileStream.FIRSTBLOCK_OFFSET)]
     [TestCase(CONFileStream.BLOCKS_PER_SECTION, 0,
         CONFileStream.FIRSTBLOCK_OFFSET + (CONFileStream.BLOCKS_PER_SECTION + 2) * CONFileStream.BYTES_PER_BLOCK)]
@@ -334,7 +402,7 @@ public class ConHandlerTests
         Assert.That(CONFileStream.CalculateBlockLocation(blockNum, shift), Is.EqualTo(expected));
     }
 
-    private static byte[] CreateHierarchyImage(byte[] fileData)
+    private static byte[] CreateHierarchyImage(byte[] fileData, string fileName = "track.mid")
     {
         byte[] image = CreateConImage(CONFileStream.CalculateBlockLocation(2, 0) + CONFileStream.BYTES_PER_BLOCK);
 
@@ -344,7 +412,7 @@ public class ConHandlerTests
         int tableOffset = (int) CONFileStream.CalculateBlockLocation(2, 0);
         WriteListing(image.AsSpan(tableOffset, SizeOfFileListing), "songs", CONFileListing.Flag.Directory, 0, 0, -1, 0);
         WriteListing(image.AsSpan(tableOffset + SizeOfFileListing, SizeOfFileListing),
-            "track.mid", CONFileListing.Flag.Consecutive, 1, 0, 0, fileData.Length);
+            fileName, CONFileListing.Flag.Consecutive, 1, 0, 0, fileData.Length);
         return image;
     }
 

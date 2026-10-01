@@ -2,6 +2,7 @@ using NUnit.Framework;
 using YARG.Core.Extensions;
 using YARG.Core.IO;
 using YARG.Core.Song;
+using YARG.Core.UnitTests.IO;
 using YARG.Core.Venue;
 
 namespace YARG.Core.UnitTests.Song;
@@ -9,6 +10,9 @@ namespace YARG.Core.UnitTests.Song;
 public class RBCONEntryTests
 {
     private const string TEST_NODE_NAME = "testsong";
+
+    // LoadExternalBackground splits the CON path with System.IO.Path, so the root has to use the OS separator.
+    private static readonly string FAKE_ROOT = OperatingSystem.IsWindows() ? @"\\fake\rbcon" : "/fake/rbcon";
 
     [Test]
     public void Create_AppliesFourLaneLeadVocalAndBandIntensities()
@@ -413,6 +417,126 @@ public class RBCONEntryTests
             {
                 Directory.Delete(root, true);
             }
+        }
+    }
+
+    [TestCase(true, "TESTSONG_CLEAN.MP4", 0x02)]
+    [TestCase(false, "TestSong.mp4", 0x01)]
+    public void LoadBackground_PackedCONResolvesMixedCaseCandidatesFromOneEnumeration(bool censoringEnabled,
+        string expectedName, int expectedByte)
+    {
+        var fileSystem = new InMemoryFileSystem();
+        string directory = Path.Combine(FAKE_ROOT, "Pack");
+        string conPath = Path.Combine(directory, "testsong.con");
+        fileSystem.AddFile(conPath, []);
+        fileSystem.AddFile(Path.Combine(directory, "TestSong.mp4"), [0x01]);
+        fileSystem.AddFile(Path.Combine(directory, "TESTSONG_CLEAN.MP4"), [0x02]);
+        fileSystem.AddFile(Path.Combine(directory, "BG.mp4"), [0x03]);
+
+        YARGFileSystem.Register(FAKE_ROOT, fileSystem);
+        try
+        {
+            using var background =
+                PackedRBCONEntry.LoadExternalBackground(conPath, "othersong", false, censoringEnabled);
+
+            Assert.That(background, Is.Not.Null);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(background!.Type, Is.EqualTo(BackgroundType.Video));
+                Assert.That(background.Stream!.ReadByte(), Is.EqualTo(expectedByte));
+                Assert.That(fileSystem.EnumeratedDirectories, Is.EqualTo([directory]));
+                Assert.That(fileSystem.OpenedPaths, Is.EqualTo([Path.Combine(directory, expectedName)]));
+            }
+        }
+        finally
+        {
+            YARGFileSystem.Unregister(FAKE_ROOT);
+        }
+    }
+
+    [TestCase(false, BackgroundType.Yarground, 0x05)]
+    [TestCase(true, BackgroundType.Video, 0x01)]
+    public void LoadBackground_PackedCONPrefersNamedVenueUnlessExcluded(bool excludeYarground,
+        BackgroundType expectedType, int expectedByte)
+    {
+        var fileSystem = new InMemoryFileSystem();
+        string directory = Path.Combine(FAKE_ROOT, "Pack");
+        string conPath = Path.Combine(directory, "testsong.con");
+        fileSystem.AddFile(conPath, []);
+        fileSystem.AddFile(Path.Combine(directory, "testsong.mp4"), [0x01]);
+        fileSystem.AddFile(Path.Combine(directory, "TESTSONG.YARGROUND"), [0x05]);
+
+        YARGFileSystem.Register(FAKE_ROOT, fileSystem);
+        try
+        {
+            using var background =
+                PackedRBCONEntry.LoadExternalBackground(conPath, "othersong", excludeYarground, false);
+
+            Assert.That(background, Is.Not.Null);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(background!.Type, Is.EqualTo(expectedType));
+                Assert.That(background.Stream!.ReadByte(), Is.EqualTo(expectedByte));
+            }
+        }
+        finally
+        {
+            YARGFileSystem.Unregister(FAKE_ROOT);
+        }
+    }
+
+    [Test]
+    public void LoadBackground_PackedCONFallsBackToDirectoryVenueNamedExactlyYarground()
+    {
+        var fileSystem = new InMemoryFileSystem();
+        string directory = Path.Combine(FAKE_ROOT, "Pack");
+        string conPath = Path.Combine(directory, "testsong.con");
+        fileSystem.AddFile(conPath, []);
+        fileSystem.AddFile(Path.Combine(directory, "bg.mp4"), [0x01]);
+        fileSystem.AddFile(Path.Combine(directory, ".YARGROUND"), [0x05]);
+
+        YARGFileSystem.Register(FAKE_ROOT, fileSystem);
+        try
+        {
+            using var background = PackedRBCONEntry.LoadExternalBackground(conPath, "othersong", false, false);
+
+            Assert.That(background, Is.Not.Null);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(background!.Type, Is.EqualTo(BackgroundType.Yarground));
+                Assert.That(background.Stream!.ReadByte(), Is.EqualTo(0x05));
+            }
+        }
+        finally
+        {
+            YARGFileSystem.Unregister(FAKE_ROOT);
+        }
+    }
+
+    [Test]
+    public void LoadBackground_PackedCONIgnoresDirectoriesAndUnnamedVenues()
+    {
+        var fileSystem = new InMemoryFileSystem();
+        string directory = Path.Combine(FAKE_ROOT, "Pack");
+        string conPath = Path.Combine(directory, "testsong.con");
+        fileSystem.AddFile(conPath, []);
+        fileSystem.AddFile(Path.Combine(directory, "other.yarground"), [0x05]);
+        fileSystem.AddDirectory(Path.Combine(directory, "testsong.mp4"));
+
+        YARGFileSystem.Register(FAKE_ROOT, fileSystem);
+        try
+        {
+            using var background = PackedRBCONEntry.LoadExternalBackground(conPath, "othersong", false, false);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(background, Is.Null);
+                Assert.That(fileSystem.OpenedPaths, Is.Empty);
+            }
+        }
+        finally
+        {
+            YARGFileSystem.Unregister(FAKE_ROOT);
         }
     }
 
