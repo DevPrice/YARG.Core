@@ -185,6 +185,13 @@ namespace YARG.Core.Song.Cache
 
         private readonly HashSet<string> preScannedPaths = new(SongPaths.Comparer);
         private readonly SortedDictionary<string, ScanResult> badSongs = new();
+
+        /// <summary>
+        /// Runs every scan loop on the scheduler that called <see cref="RunScan"/>, rather than on the thread pool
+        /// that a bare Parallel.ForEach uses. A caller whose filesystem completes reads from thread-pool callbacks
+        /// (an in-process network client) can then keep the scan's blocked threads out of the pool.
+        /// </summary>
+        private readonly ParallelOptions parallelOptions = new() { TaskScheduler = TaskScheduler.Current };
         #endregion
 
         #region Common
@@ -311,16 +318,16 @@ namespace YARG.Core.Song.Cache
         private void FindNewEntries(bool fullDirectoryPlaylists)
         {
             var tracker = new PlaylistTracker(fullDirectoryPlaylists, null);
-            Parallel.ForEach(iniGroups, group =>
+            Parallel.ForEach(iniGroups, parallelOptions, group =>
             {
                 string directory = Path.GetFullPath(group.Directory);
                 ScanDirectory(directory, GetDirectoryName(directory), group, tracker);
             });
 
-            Parallel.ForEach(conEntryGroups, group =>
+            Parallel.ForEach(conEntryGroups, parallelOptions, group =>
             {
                 group.InitScan();
-                Parallel.ForEach(group, node =>
+                Parallel.ForEach(group, parallelOptions, node =>
                 {
                     var mods = GetCONMod(node.Key);
                     if (mods.UpdateDirectoryAndDtaLastWrite != null)
@@ -721,7 +728,7 @@ namespace YARG.Core.Song.Cache
                 else
                 {
                     var nextTracker = tracker.Append(name);
-                    Parallel.ForEach(collection, entry =>
+                    Parallel.ForEach(collection, parallelOptions, entry =>
                     {
                         if (entry.Value.Stat.IsDirectory)
                         {
@@ -1000,27 +1007,27 @@ namespace YARG.Core.Song.Cache
         {
             var stream = data.ToValueStream();
             var strings = new CacheReadStrings(&stream);
-            Parallel.ForEach(new CacheLoopable(&stream), node =>
+            Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node =>
             {
                 ReadUpdateDirectory(node.Slice);
             });
 
-            Parallel.ForEach(new CacheLoopable(&stream), node =>
+            Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node =>
             {
                 ReadUpgradeDirectory(node.Slice);
             });
 
-            Parallel.ForEach(new CacheLoopable(&stream), node =>
+            Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node =>
             {
                 ReadUpgradeCON(node.Slice, fullDirectoryPlaylists);
             });
 
-            Parallel.ForEach(new CacheLoopable(&stream), node =>
+            Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node =>
             {
                 ReadIniDirectory(node.Slice, strings);
             });
 
-            Parallel.ForEach(new CacheLoopable(&stream), node =>
+            Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node =>
             {
                 ReadCONGroup(node.Slice, strings, fullDirectoryPlaylists);
             });
@@ -1034,27 +1041,27 @@ namespace YARG.Core.Song.Cache
         {
             var stream = data.ToValueStream();
             var strings = new CacheReadStrings(&stream);
-            Parallel.ForEach(new CacheLoopable(&stream), node =>
+            Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node =>
             {
                 QuickReadUpdateDirectory(node.Slice);
             });
 
-            Parallel.ForEach(new CacheLoopable(&stream), node =>
+            Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node =>
             {
                 QuickReadUpgradeDirectory(node.Slice);
             });
 
-            Parallel.ForEach(new CacheLoopable(&stream), node =>
+            Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node =>
             {
                 QuickReadUpgradeCON(node.Slice);
             });
 
-            Parallel.ForEach(new CacheLoopable(&stream), node =>
+            Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node =>
             {
                 QuickReadIniDirectory(node.Slice, strings);
             });
 
-            Parallel.ForEach(new CacheLoopable(&stream), node =>
+            Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node =>
             {
                 QuickReadCONGroup(node.Slice, strings);
             });
@@ -1378,7 +1385,7 @@ namespace YARG.Core.Song.Cache
 
             unsafe
             {
-                Parallel.ForEach(new CacheLoopable(&stream), node =>
+                Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node =>
                 {
                     var entry = UnpackedIniEntry.TryDeserialize(directory, ref node.Slice, strings);
                     if (entry != null)
@@ -1389,7 +1396,7 @@ namespace YARG.Core.Song.Cache
                     }
                 });
 
-                Parallel.ForEach(new CacheLoopable(&stream), node =>
+                Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node =>
                 {
                     var entry = SngEntry.TryDeserialize(directory, ref node.Slice, strings);
                     if (entry != null)
@@ -1407,8 +1414,8 @@ namespace YARG.Core.Song.Cache
             string directory = stream.ReadString();
             unsafe
             {
-                Parallel.ForEach(new CacheLoopable(&stream), node => AddEntry(UnpackedIniEntry.ForceDeserialize(directory, ref node.Slice, strings)));
-                Parallel.ForEach(new CacheLoopable(&stream), node => AddEntry(SngEntry.ForceDeserialize(directory, ref node.Slice, strings)));
+                Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node => AddEntry(UnpackedIniEntry.ForceDeserialize(directory, ref node.Slice, strings)));
+                Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node => AddEntry(SngEntry.ForceDeserialize(directory, ref node.Slice, strings)));
             }
         }
 
@@ -1463,7 +1470,7 @@ namespace YARG.Core.Song.Cache
 
             unsafe
             {
-                Parallel.ForEach(new CacheLoopable(&stream), node =>
+                Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node =>
                 {
                     try
                     {
@@ -1496,7 +1503,7 @@ namespace YARG.Core.Song.Cache
 
             unsafe
             {
-                Parallel.ForEach(new CacheLoopable(&stream), node =>
+                Parallel.ForEach(new CacheLoopable(&stream), parallelOptions, node =>
                 {
                     string name = node.Slice.ReadString();
                     int index = node.Slice.ReadByte();
