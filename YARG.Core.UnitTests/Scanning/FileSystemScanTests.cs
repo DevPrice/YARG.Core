@@ -139,6 +139,44 @@ public class FileSystemScanTests
         }
     }
 
+    [Test]
+    public void FullScan_RunsItsLoopsOnTheCallersScheduler()
+    {
+        var scheduler = new CountingScheduler();
+
+        var cache = Task.Factory.StartNew(() => CacheHandler.RunScan(false, _cache, _badSongs, false, [ROOT]),
+            CancellationToken.None, TaskCreationOptions.DenyChildAttach, scheduler).GetAwaiter().GetResult();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(Flatten(cache), Has.Count.EqualTo(4));
+            Assert.That(scheduler.Queued, Is.GreaterThan(1), "the scan's parallel loops should queue on the caller's scheduler");
+        }
+    }
+
+    private sealed class CountingScheduler : TaskScheduler
+    {
+        private int _queued;
+
+        public int Queued => _queued;
+
+        protected override void QueueTask(Task task)
+        {
+            Interlocked.Increment(ref _queued);
+            ThreadPool.UnsafeQueueUserWorkItem(_ => TryExecuteTask(task), null);
+        }
+
+        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued)
+        {
+            return !taskWasPreviouslyQueued && TryExecuteTask(task);
+        }
+
+        protected override IEnumerable<Task> GetScheduledTasks()
+        {
+            return [];
+        }
+    }
+
     internal static List<SongEntry> Flatten(SongCache cache)
     {
         return cache.Entries.Values.SelectMany(list => list).ToList();
