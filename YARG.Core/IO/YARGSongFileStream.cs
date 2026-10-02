@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using YARG.Core.Extensions;
 
 namespace YARG.Core.IO
 {
@@ -14,7 +15,8 @@ namespace YARG.Core.IO
             (byte) 'S', (byte) 'O', (byte) 'N', (byte) 'G'
         };
 
-        private readonly FileStream _stream;
+        private readonly Stream _stream;
+        private readonly string? _path;
         // These are very important values required to properly
         // decrypt the first layer of encryption (Crawford multi-
         // value cipher).
@@ -36,9 +38,28 @@ namespace YARG.Core.IO
 
         public static bool TryLoad(FileStream filestream, out YARGSongFileStream yargStream)
         {
+            return TryLoad((Stream) filestream, out yargStream);
+        }
+
+        /// <summary>
+        /// Reads the YARGSONG header from the start of <paramref name="filestream"/>, which must be seekable.
+        /// On success, <paramref name="yargStream"/> takes ownership of <paramref name="filestream"/> and
+        /// disposes it; on failure, the caller keeps ownership.
+        /// </summary>
+        public static bool TryLoad(Stream filestream, out YARGSongFileStream yargStream)
+        {
+            return TryLoad(filestream, null, out yargStream);
+        }
+
+        /// <summary>
+        /// As <see cref="TryLoad(Stream, out YARGSongFileStream)"/>, recording <paramref name="path"/> so that
+        /// <see cref="Clone"/> can reopen the file through <see cref="YARGFileSystem"/>.
+        /// </summary>
+        public static bool TryLoad(Stream filestream, string? path, out YARGSongFileStream yargStream)
+        {
             yargStream = null!;
             Span<byte> signature = stackalloc byte[FILE_SIGNATURE.Length];
-            if (filestream.Read(signature) != FILE_SIGNATURE.Length)
+            if (filestream.ReadFully(signature) != FILE_SIGNATURE.Length)
             {
                 return false;
             }
@@ -65,7 +86,7 @@ namespace YARG.Core.IO
             // We are using a SET_LENGTH-long Euler cipher set (I think?) for this
 
             Span<byte> set = stackalloc byte[SET_LENGTH];
-            if (filestream.Read(set) != SET_LENGTH)
+            if (filestream.ReadFully(set) != SET_LENGTH)
             {
                 filestream.Close();
                 throw new EndOfStreamException("YARGSong incomplete");
@@ -87,17 +108,29 @@ namespace YARG.Core.IO
                     values[3] += j << 2;
                 }
             }
-            yargStream = new YARGSongFileStream(filestream.Name, values);
+            yargStream = new YARGSongFileStream(filestream, values, path);
             return true;
         }
 
         public YARGSongFileStream(string filename, int[] values)
+            : this(YARGFileSystem.OpenRead(filename, 1), values, filename)
+        {
+        }
+
+        /// <summary>
+        /// Wraps <paramref name="stream"/>, which must be seekable, and takes ownership of it.
+        /// </summary>
+        public YARGSongFileStream(Stream stream, int[] values)
+            : this(stream, values, null)
+        {
+        }
+
+        private YARGSongFileStream(Stream stream, int[] values, string? path)
         {
             _values = values;
-            _stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 1)
-            {
-                Position = HEADER_SIZE
-            };
+            _stream = stream;
+            _path = path ?? (stream as FileStream)?.Name;
+            _stream.Position = HEADER_SIZE;
         }
 
         public override int Read(byte[] buffer, int offset, int count)
@@ -146,9 +179,26 @@ namespace YARG.Core.IO
             _stream.Flush();
         }
 
+        /// <summary>
+        /// Opens an independent stream over the same file through <see cref="YARGFileSystem"/>. Only supported
+        /// when the path is known: the stream was opened by path, loaded with one, or wraps a <see cref="FileStream"/>.
+        /// </summary>
         public YARGSongFileStream Clone()
         {
-            return new YARGSongFileStream(_stream.Name, _values);
+            if (_path == null)
+            {
+                throw new NotSupportedException("A YARGSongFileStream can only be cloned when its file path is known");
+            }
+            return new YARGSongFileStream(_path, _values);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _stream.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 }

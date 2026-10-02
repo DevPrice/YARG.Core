@@ -23,13 +23,13 @@ namespace YARG.Core.Song.Cache
 
         private CONUpdateGroup() { }
 
-        public static bool Create(string directory, FileInfo dtaInfo, out CONUpdateGroup group)
+        public static bool Create(string directory, in YARGFileSystemEntry dtaInfo, out CONUpdateGroup group)
         {
             try
             {
                 group = new CONUpdateGroup()
                 {
-                    _root = new AbridgedFileInfo(directory, AbridgedFileInfo.NormalizedLastWrite(dtaInfo)),
+                    _root = new AbridgedFileInfo(directory, AbridgedFileInfo.NormalizedLastWrite(in dtaInfo.Stat)),
                 };
 
                 using var data = FixedArray.LoadFile(dtaInfo.FullName);
@@ -41,10 +41,9 @@ namespace YARG.Core.Song.Cache
                     if (!group._updates.TryGetValue(name, out var node))
                     {
                         DateTime? lastWriteTime = null;
-                        var info = new FileInfo(Path.Combine(group._root.FullName, name, name + "_update.mid"));
-                        if (info.Exists)
+                        if (AbridgedFileInfo.TryStatFile(Path.Combine(group._root.FullName, name, name + "_update.mid"), out var stat))
                         {
-                            lastWriteTime = AbridgedFileInfo.NormalizedLastWrite(info);
+                            lastWriteTime = AbridgedFileInfo.NormalizedLastWrite(in stat);
                         }
                         group._updates.Add(name, node = (new List<YARGTextContainer<byte>>(), lastWriteTime));
                     }

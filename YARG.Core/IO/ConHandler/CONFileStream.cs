@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Runtime.CompilerServices;
+using YARG.Core.Extensions;
 
 namespace YARG.Core.IO
 {
@@ -15,7 +16,7 @@ namespace YARG.Core.IO
         public const int BYTES_PER_HASH_ENTRY   = 0x18;
         public const int NEXT_BLOCK_HASH_OFFSET = 0x15;
 
-        private readonly FileStream       _filestream;
+        private readonly Stream           _filestream;
         private readonly int              _length;
         private readonly int              _initialOffset;
         private readonly FixedArray<byte> _dataBuffer;
@@ -150,13 +151,13 @@ namespace YARG.Core.IO
             int offset = index == 0 ? _initialOffset : 0;
             count -= offset;
 
-            if (_filestream.Read(_dataBuffer.Slice(offset, count)) != count)
+            if (_filestream.ReadFully(_dataBuffer.Slice(offset, count)) != count)
             {
                 throw new IOException("Buffer update error");
             }
         }
 
-        private CONFileStream(FileStream stream, int length, int offset, FixedArray<byte> buffer, FixedArray<long> locations)
+        private CONFileStream(Stream stream, int length, int offset, FixedArray<byte> buffer, FixedArray<long> locations)
         {
             _filestream = stream;
             _length = length;
@@ -182,7 +183,7 @@ namespace YARG.Core.IO
 
         public static CONFileStream CreateStream(string path, CONFileListing listing)
         {
-            var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+            var stream = YARGFileSystem.OpenRead(path, 1);
             try
             {
                 FixedArray<byte> dataBuffer;
@@ -251,7 +252,7 @@ namespace YARG.Core.IO
                             long hashLocation = location - ((blockOffset + 1) * BYTES_PER_BLOCK);
                             stream.Position = hashLocation;
 
-                            if (stream.Read(hashSpan) != BYTES_PER_BLOCK)
+                            if (stream.ReadFully(hashSpan) != BYTES_PER_BLOCK)
                             {
                                 throw new IOException("Hashblock Read error");
                             }
@@ -276,7 +277,7 @@ namespace YARG.Core.IO
 
         public static FixedArray<byte> LoadFile(string path, CONFileListing listing)
         {
-            using var filestream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+            using var filestream = YARGFileSystem.OpenRead(path, 1);
             return LoadFile(filestream, listing);
         }
 
@@ -298,7 +299,7 @@ namespace YARG.Core.IO
                         readSize = remaining;
                     }
 
-                    if (stream.Read(data.Slice(listing.Length - remaining, readSize)) != readSize)
+                    if (stream.ReadFully(data.Slice(listing.Length - remaining, readSize)) != readSize)
                     {
                         throw new Exception("Block read error in CON subfile - Continguous");
                     }
@@ -322,7 +323,7 @@ namespace YARG.Core.IO
                         stream.Position = blockLocation;
 
                         int readCount = i + 1 < listing.BlockCount ? BYTES_PER_BLOCK : listing.Length - (i * BYTES_PER_BLOCK);
-                        if (stream.Read(new Span<byte>(position, readCount)) != readCount)
+                        if (stream.ReadFully(new Span<byte>(position, readCount)) != readCount)
                         {
                             throw new Exception("Block read error in CON subfile - Split");
                         }
@@ -339,7 +340,7 @@ namespace YARG.Core.IO
                             }
 
                             stream.Position = hashLocation;
-                            if (stream.Read(hashSpan) != BYTES_PER_BLOCK)
+                            if (stream.ReadFully(hashSpan) != BYTES_PER_BLOCK)
                             {
                                 throw new Exception("Hashblock read error in CON subfile");
                             }

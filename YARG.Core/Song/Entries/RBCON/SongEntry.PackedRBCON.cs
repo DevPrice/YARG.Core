@@ -58,38 +58,39 @@ namespace YARG.Core.Song
             string conName = Path.GetFileName(conPath);
             string conNameWithoutExtension = Path.GetFileNameWithoutExtension(conPath);
             string censorSuffix = enableCensoring ? CLEAN_BACKGROUND_SUFFIX : EXPLICIT_BACKGROUND_SUFFIX;
-            foreach (var name in GetPackedConBackgroundNames(subName, conName, conNameWithoutExtension))
+            var files = GetFilesByName(actualDirectory);
+            if (!excludeYarground)
             {
-                string specificVenue = Path.Combine(actualDirectory, name + YARGROUND_EXTENSION);
-                if (File.Exists(specificVenue) && !excludeYarground)
+                foreach (var name in GetPackedConBackgroundNames(subName, conName, conNameWithoutExtension))
                 {
-                    var stream = File.OpenRead(specificVenue);
+                    if (files.TryGetValue(name + YARGROUND_EXTENSION, out var venue))
+                    {
+                        var stream = YARGFileSystem.OpenRead(venue);
+                        return new BackgroundResult(BackgroundType.Yarground, stream);
+                    }
+                }
+
+                // Exactly ".yarground", not "*.yarground": that is what the longstanding
+                // Directory.GetFiles(dir, ".yarground") lookup matched.
+                if (files.TryGetValue(YARGROUND_EXTENSION, out var directoryVenue))
+                {
+                    var stream = YARGFileSystem.OpenRead(directoryVenue);
                     return new BackgroundResult(BackgroundType.Yarground, stream);
                 }
             }
 
-            var venues = Directory.GetFiles(actualDirectory, YARGROUND_EXTENSION);
-            if (venues.Length > 0 && !excludeYarground)
-            {
-                var stream = File.OpenRead(venues[BACKROUND_RNG.Next(venues.Length)]);
-                return new BackgroundResult(BackgroundType.Yarground, stream);
-            }
-
             foreach (var name in GetPackedBackgroundNames(subName, conName, conNameWithoutExtension, includeVideo: true))
             {
-                string fileBase = Path.Combine(actualDirectory, name);
                 foreach (var ext in VIDEO_EXTENSIONS)
                 {
-                    string censoredPath = fileBase + censorSuffix + ext;
-                    if (File.Exists(censoredPath))
+                    if (files.TryGetValue(name + censorSuffix + ext, out var censoredPath))
                     {
-                        var stream = File.OpenRead(censoredPath);
+                        var stream = YARGFileSystem.OpenRead(censoredPath);
                         return new BackgroundResult(BackgroundType.Video, stream);
                     }
-                    string backgroundPath = fileBase + ext;
-                    if (File.Exists(backgroundPath))
+                    if (files.TryGetValue(name + ext, out var backgroundPath))
                     {
-                        var stream = File.OpenRead(backgroundPath);
+                        var stream = YARGFileSystem.OpenRead(backgroundPath);
                         return new BackgroundResult(BackgroundType.Video, stream);
                     }
                 }
@@ -97,11 +98,9 @@ namespace YARG.Core.Song
 
             foreach (var name in GetPackedBackgroundNames(subName, conName, conNameWithoutExtension, includeVideo: false))
             {
-                var fileBase = Path.Combine(actualDirectory, name);
                 foreach (var ext in IMAGE_EXTENSIONS)
                 {
-                    string censoredPath = fileBase + censorSuffix + ext;
-                    if (File.Exists(censoredPath))
+                    if (files.TryGetValue(name + censorSuffix + ext, out var censoredPath))
                     {
                         var image = YARGImage.Load(censoredPath);
                         if (image != null)
@@ -109,8 +108,7 @@ namespace YARG.Core.Song
                             return new BackgroundResult(image);
                         }
                     }
-                    string backgroundPath = fileBase + ext;
-                    if (File.Exists(backgroundPath))
+                    if (files.TryGetValue(name + ext, out var backgroundPath))
                     {
                         var image = YARGImage.Load(backgroundPath);
                         if (image != null)
@@ -121,6 +119,20 @@ namespace YARG.Core.Song
                 }
             }
             return null;
+        }
+
+        // Case-insensitive to match File.Exists on Windows and SMB.
+        private static Dictionary<string, string> GetFilesByName(string directory)
+        {
+            var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in YARGFileSystem.Enumerate(directory))
+            {
+                if (!entry.Stat.IsDirectory)
+                {
+                    files.TryAdd(entry.Name, entry.FullName);
+                }
+            }
+            return files;
         }
 
         private static IEnumerable<string> GetPackedConBackgroundNames(string subName, string conName, string conNameWithoutExtension)

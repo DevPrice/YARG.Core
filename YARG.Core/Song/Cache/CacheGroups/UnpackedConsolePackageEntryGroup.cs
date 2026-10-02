@@ -10,7 +10,7 @@ namespace YARG.Core.Song.Cache
         private UnpackedConsolePackageEntryGroup(in AbridgedFileInfo root, string defaultPlaylist)
             : base(root, defaultPlaylist) { }
 
-        public static bool Create(string directory, FileInfo dtaInfo, string defaultPlaylist, out CONEntryGroup group)
+        public static bool Create(string directory, in YARGFileSystemEntry dtaInfo, string defaultPlaylist, out CONEntryGroup group)
         {
             try
             {
@@ -28,13 +28,13 @@ namespace YARG.Core.Song.Cache
                         continue;
                     }
                     string subname = entry.Location[6..entry.Location.IndexOf('/', 6)];
-                    if (File.Exists(Path.Combine(directory, subname, subname + ".mid.edat")))
+                    if (YARGFileSystem.FileExists(Path.Combine(directory, subname, subname + ".mid.edat")))
                     {
-                        return UnpackedPKGEntryGroup.Create(directory, dtaInfo, defaultPlaylist, out group);
+                        return UnpackedPKGEntryGroup.Create(directory, in dtaInfo, defaultPlaylist, out group);
                     }
-                    if (File.Exists(Path.Combine(directory, subname, subname + ".mid")))
+                    if (YARGFileSystem.FileExists(Path.Combine(directory, subname, subname + ".mid")))
                     {
-                        return UnpackedCONEntryGroup.Create(directory, dtaInfo, defaultPlaylist, out group);
+                        return UnpackedCONEntryGroup.Create(directory, in dtaInfo, defaultPlaylist, out group);
                     }
                     YargLogger.LogFormatWarning("Node {0} contained neither .mid nor .mid.edat, cannot determine entry group, checking next node if available", name);
                     YARGDTAReader.EndNode(ref container);

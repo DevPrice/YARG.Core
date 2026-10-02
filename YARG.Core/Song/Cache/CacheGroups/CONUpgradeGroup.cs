@@ -86,11 +86,11 @@ namespace YARG.Core.Song.Cache
 
         private UnpackedCONUpgradeGroup() { }
 
-        public static bool Create(in FileCollection collection, FileInfo dtaInfo, out UnpackedCONUpgradeGroup group)
+        public static bool Create(in FileCollection collection, in YARGFileSystemEntry dtaInfo, out UnpackedCONUpgradeGroup group)
         {
             group = new UnpackedCONUpgradeGroup()
             {
-                _root = new AbridgedFileInfo(collection.Directory, AbridgedFileInfo.NormalizedLastWrite(dtaInfo))
+                _root = new AbridgedFileInfo(collection.Directory, AbridgedFileInfo.NormalizedLastWrite(in dtaInfo.Stat))
             };
 
             try
@@ -103,7 +103,7 @@ namespace YARG.Core.Song.Cache
                     string name = YARGDTAReader.GetNameOfNode(ref container, true);
                     if (collection.FindFile(name.ToLower() + RBProUpgrade.UPGRADES_MIDI_EXT, out var info))
                     {
-                        group._upgrades[name] = (container, new UnpackedRBProUpgrade(name, info.LastWriteTime, group._root));
+                        group._upgrades[name] = (container, new UnpackedRBProUpgrade(name, AbridgedFileInfo.NormalizedLastWrite(in info.Stat), group._root));
                     }
                     YARGDTAReader.EndNode(ref container);
                 }

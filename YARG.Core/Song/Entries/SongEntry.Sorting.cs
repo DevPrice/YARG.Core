@@ -186,10 +186,11 @@ namespace YARG.Core.Song
             }
         }
 
-        private static readonly unsafe delegate*<SongCache, Dictionary<SongEntry, CacheWriteIndices>, List<string>>[] COLLECTORS =
+        // Delegates, not function pointers: IL2CPP (Unity 6000.3) crashes converting a static array of delegate*.
+        private static readonly Func<SongCache, Dictionary<SongEntry, CacheWriteIndices>, List<string>>[] COLLECTORS =
         {
-            &CollectCacheTitles, &CollectCacheArtists,  &CollectCacheAlbums,    &CollectCacheGenres, &CollectCacheSubgenres,
-            &CollectCacheYears,  &CollectCacheCharters, &CollectCachePlaylists, &CollectCacheSources,
+            CollectCacheTitles, CollectCacheArtists,  CollectCacheAlbums,    CollectCacheGenres, CollectCacheSubgenres,
+            CollectCacheYears,  CollectCacheCharters, CollectCachePlaylists, CollectCacheSources,
         };
 
         internal static void WriteCategoriesToCache(FileStream filestream, SongCache cache, Dictionary<SongEntry, CacheWriteIndices> nodes)
@@ -203,13 +204,7 @@ namespace YARG.Core.Song
             }
 
             var categories = new List<string>[CacheReadStrings.NUM_CATEGORIES];
-            Parallel.For(0, CacheReadStrings.NUM_CATEGORIES, i =>
-            {
-                unsafe
-                {
-                    categories[i] = COLLECTORS[i](cache, nodes);
-                }
-            });
+            Parallel.For(0, CacheReadStrings.NUM_CATEGORIES, i => categories[i] = COLLECTORS[i](cache, nodes));
 
             using MemoryStream ms = new();
             for (int i = 0; i < categories.Length; ++i)
