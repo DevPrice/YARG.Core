@@ -93,15 +93,15 @@ namespace YARG.Core.IO
 
         public readonly void Dispose()
         {
-            _tracker.Dispose();
+            _tracker?.Dispose();
         }
 
         private static readonly byte[] SNGPKG = { (byte) 'S', (byte) 'N', (byte) 'G', (byte) 'P', (byte) 'K', (byte) 'G' };
         public static SngFile TryLoadFromFile(string filename, bool loadMetadata)
         {
-            using var tracker = new SngTracker();
-            var filestream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
-            if (YARGSongFileStream.TryLoad(filestream, out var yargStream))
+            var filestream = YARGFileSystem.OpenRead(filename, 1);
+            using var tracker = new SngTracker { Stream = filestream };
+            if (YARGSongFileStream.TryLoad(filestream, filename, out var yargStream))
             {
                 yargStream.Position = SNGPKG.Length;
                 tracker.Stream = yargStream;
@@ -110,11 +110,10 @@ namespace YARG.Core.IO
             {
                 filestream.Position = 0;
                 Span<byte> tag = stackalloc byte[SNGPKG.Length];
-                if (filestream.Read(tag) < tag.Length || !tag.SequenceEqual(SNGPKG))
+                if (filestream.ReadFully(tag) < tag.Length || !tag.SequenceEqual(SNGPKG))
                 {
                     return default;
                 }
-                tracker.Stream = filestream;
             }
 
             SngFile sng = new()
@@ -143,9 +142,9 @@ namespace YARG.Core.IO
 
         public static bool ValidateMatch(string filename, uint versionToMatch)
         {
-            using var filestream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+            using var filestream = YARGFileSystem.OpenRead(filename, 1);
             Stream basestream;
-            if (YARGSongFileStream.TryLoad(filestream, out var yargStream))
+            if (YARGSongFileStream.TryLoad(filestream, filename, out var yargStream))
             {
                 yargStream.Position = SNGPKG.Length;
                 basestream = yargStream;
@@ -154,7 +153,7 @@ namespace YARG.Core.IO
             {
                 filestream.Position = 0;
                 Span<byte> tag = stackalloc byte[SNGPKG.Length];
-                if (filestream.Read(tag) < tag.Length || !tag.SequenceEqual(SNGPKG))
+                if (filestream.ReadFully(tag) < tag.Length || !tag.SequenceEqual(SNGPKG))
                 {
                     return false;
                 }

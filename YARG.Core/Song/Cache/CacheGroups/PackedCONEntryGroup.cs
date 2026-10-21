@@ -1,8 +1,6 @@
-using Microsoft.Win32.SafeHandles;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.MemoryMappedFiles;
 using System.Text;
 using YARG.Core.Extensions;
 using YARG.Core.IO;
@@ -13,7 +11,7 @@ namespace YARG.Core.Song.Cache
     internal class PackedCONEntryGroup : CONEntryGroup
     {
         private readonly List<CONFileListing> _listings;
-        private FileStream _stream = null!;
+        private Stream _stream = null!;
 
         protected override CONEntryType Tag => CONEntryType.PackedCONEntry;
 
@@ -25,7 +23,7 @@ namespace YARG.Core.Song.Cache
 
         public override CONEntryGroup InitScan()
         {
-            _stream = new FileStream(_root.FullName, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+            _stream = YARGFileSystem.OpenRead(_root.FullName, 1);
             return this;
         }
 

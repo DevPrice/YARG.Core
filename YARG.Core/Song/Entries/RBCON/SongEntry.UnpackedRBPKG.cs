@@ -36,22 +36,22 @@ namespace YARG.Core.Song
 
                 string songDirectory = Path.Combine(parameters.Root.FullName, entry._subName);
 
-                var midiInfo = new FileInfo(Path.Combine(songDirectory, entry._subName + ".mid.edat"));
-                if (!midiInfo.Exists)
+                string midiPath = Path.Combine(songDirectory, entry._subName + ".mid.edat");
+                if (!AbridgedFileInfo.TryStatFile(midiPath, out var midiStat))
                 {
                     return new ScanUnexpected(ScanResult.MissingCONMidi);
                 }
                 // First three bytes should be 4E 50 44 if encrypted
-                using var midiStream = new FileStream(midiInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+                using var midiStream = YARGFileSystem.OpenRead(midiPath, 1);
                 if ((midiStream.Read<int>(Endianness.Big) & 0xFFFFFF00) == ENCRYPTED_EDAT_MAGIC)
                 {
                     return new ScanUnexpected(ScanResult.EdatMidiEncrypted);
                 }
 
                 string moggPath = Path.Combine(songDirectory, entry._subName + ".mogg");
-                if (File.Exists(moggPath))
+                if (YARGFileSystem.FileExists(moggPath))
                 {
-                    using var moggStream = new FileStream(moggPath, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+                    using var moggStream = YARGFileSystem.OpenRead(moggPath, 1);
                     var moggResult = ValidateMoggHeader(moggStream);
                     if (moggResult != ScanResult.Success)
                     {
@@ -63,14 +63,14 @@ namespace YARG.Core.Song
                     return new ScanUnexpected(ScanResult.MoggError);
                 }
 
-                using var mainMidi = FixedArray.LoadFile(midiInfo.FullName);
+                using var mainMidi = FixedArray.LoadFile(midiPath);
 
                 var result = ScanMidis(entry, mainMidi);
                 if (result != ScanResult.Success)
                 {
                     return new ScanUnexpected(result);
                 }
-                entry._midiLastWrite = AbridgedFileInfo.NormalizedLastWrite(midiInfo);
+                entry._midiLastWrite = AbridgedFileInfo.NormalizedLastWrite(in midiStat);
                 entry.SetSortStrings();
                 return entry;
             }
@@ -85,14 +85,13 @@ namespace YARG.Core.Song
         {
             string subname = stream.ReadString();
             string midiPath = Path.Combine(root.FullName, subname, subname + ".mid.edat");
-            var midiInfo = new FileInfo(midiPath);
-            if (!midiInfo.Exists)
+            if (!AbridgedFileInfo.TryStatFile(midiPath, out var midiStat))
             {
                 return null;
             }
 
             var midiLastWrite = DateTime.FromBinary(stream.Read<long>(Endianness.Little));
-            if (midiLastWrite != midiInfo.LastWriteTime)
+            if (midiLastWrite != AbridgedFileInfo.NormalizedLastWrite(in midiStat))
             {
                 return null;
             }
