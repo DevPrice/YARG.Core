@@ -50,10 +50,14 @@ namespace YARG.Core.Song.Cache
                 entryStream.SetLength(0);
 
                 // Validation block
-                string relativePath = Path.GetRelativePath(_directory, entry.ActualLocation);
-                if (relativePath == ".")
+                // Local folders keep Path.GetRelativePath, whose normalization their caches were written with
+                if (!SongPaths.IsUnc(_directory) || !SongPaths.TryGetRelativePath(_directory, entry.ActualLocation, out string relativePath))
                 {
-                    relativePath = string.Empty;
+                    relativePath = Path.GetRelativePath(_directory, entry.ActualLocation);
+                    if (relativePath == ".")
+                    {
+                        relativePath = string.Empty;
+                    }
                 }
                 entryStream.Write(relativePath);
 

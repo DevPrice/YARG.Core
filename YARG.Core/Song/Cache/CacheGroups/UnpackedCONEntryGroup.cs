@@ -27,9 +27,9 @@ namespace YARG.Core.Song.Cache
             }
         }
 
-        public static bool Create(string directory, FileInfo dtaInfo, string defaultPlaylist, out CONEntryGroup group)
+        public static bool Create(string directory, in YARGFileSystemEntry dtaInfo, string defaultPlaylist, out CONEntryGroup group)
         {
-            var dtaLastWrite = AbridgedFileInfo.NormalizedLastWrite(dtaInfo);
+            var dtaLastWrite = AbridgedFileInfo.NormalizedLastWrite(in dtaInfo.Stat);
             var root = new AbridgedFileInfo(directory, dtaLastWrite);
             group = new UnpackedCONEntryGroup(in root, defaultPlaylist);
             try

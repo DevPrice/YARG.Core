@@ -1,12 +1,13 @@
 ﻿using System;
 using System.IO;
+using YARG.Core.Extensions;
 
 namespace YARG.Core.IO
 {
     public sealed class YargMoggReadStream : Stream
     {
         private const int MATRIXSIZE = 16;
-        private readonly FileStream _fileStream;
+        private readonly Stream _fileStream;
         private readonly long _length;
 
         private readonly byte[] _baseEncryptionMatrix = new byte[MATRIXSIZE];
@@ -48,11 +49,11 @@ namespace YARG.Core.IO
 
         public YargMoggReadStream(string path)
         {
-            _fileStream = new FileStream(path, FileMode.Open, FileAccess.Read);
+            _fileStream = YARGFileSystem.OpenRead(path);
             _length = _fileStream.Length - MATRIXSIZE;
 
             // Get the encryption matrix
-            _fileStream.Read(_baseEncryptionMatrix);
+            _fileStream.ReadFully(_baseEncryptionMatrix);
 
             // Using `value % 255`, a value of 255 at index 0 would become zero
             if (_baseEncryptionMatrix[0] == 255)

@@ -24,3 +24,26 @@ jobs:
                   name: "STB2CSharp - MacOS"
                   path: STB2CSharp/STB2CSharp.dylib
 
+    stb2csharp-uwp-builder:
+        name: 🔨 Build - UWP x64
+        runs-on: windows-latest
+        timeout-minutes: 90
+
+        steps:
+            - name: "Checkout project"
+              uses: actions/checkout@v4
+
+            - name: "Setup MSBuild"
+              uses: microsoft/setup-msbuild@v2
+
+            - name: "Build"
+              run: msbuild STB2CSharp/STB2CSharp.UWP.vcxproj -p:Configuration=Release -p:Platform=x64
+
+            - name: "Upload to artifacts"
+              uses: actions/upload-artifact@v4
+              with:
+                  name: "STB2CSharp - UWP x64"
+                  path: |
+                      STB2CSharp/x64/Release-UWP/STB2CSharp.dll
+                      STB2CSharp/x64/Release-UWP/STB2CSharp.pdb
+

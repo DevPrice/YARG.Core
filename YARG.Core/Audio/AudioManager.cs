@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using YARG.Core.IO;
 using YARG.Core.Logging;
 
 namespace YARG.Core.Audio
@@ -59,7 +60,7 @@ namespace YARG.Core.Audio
 
         internal StemMixer? LoadCustomFile(string file, float speed, double volume, bool normalize, SongStem stem = SongStem.Song)
         {
-            var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+            var stream = YARGFileSystem.OpenRead(file, 1);
             var mixer = LoadCustomFile(file, stream, speed, volume, normalize, stem);
             if (mixer == null)
             {

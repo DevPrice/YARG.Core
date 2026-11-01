@@ -633,9 +633,9 @@ namespace YARG.Core.Song
             if (_updateDirectoryAndDtaLastWrite.HasValue)
             {
                 string updateMoggPath = Path.Combine(_updateDirectoryAndDtaLastWrite.Value.FullName, _subName, _subName + "_update.mogg");
-                if (File.Exists(updateMoggPath))
+                if (YARGFileSystem.FileExists(updateMoggPath))
                 {
-                    stream = File.OpenRead(updateMoggPath);
+                    stream = YARGFileSystem.OpenRead(updateMoggPath);
                 }
             }
             return stream;
@@ -647,7 +647,7 @@ namespace YARG.Core.Song
             if (_updateDirectoryAndDtaLastWrite.HasValue)
             {
                 string updateImgPath = Path.Combine(_updateDirectoryAndDtaLastWrite.Value.FullName, _subName, "gen", _subName + "_keep.png_xbox");
-                if (File.Exists(updateImgPath))
+                if (YARGFileSystem.FileExists(updateImgPath))
                 {
                     image = YARGImage.LoadDXT(updateImgPath);
                 }
@@ -661,7 +661,7 @@ namespace YARG.Core.Song
             if (_updateDirectoryAndDtaLastWrite.HasValue)
             {
                 string updateMiloPath = Path.Combine(_updateDirectoryAndDtaLastWrite.Value.FullName, _subName, "gen", _subName + ".milo_xbox");
-                if (File.Exists(updateMiloPath))
+                if (YARGFileSystem.FileExists(updateMiloPath))
                 {
                     data = FixedArray.LoadFile(updateMiloPath);
                 }
@@ -675,7 +675,7 @@ namespace YARG.Core.Song
             if (_updateDirectoryAndDtaLastWrite.HasValue)
             {
                 string updateVocPath = Path.Combine(_updateDirectoryAndDtaLastWrite.Value.FullName, _subName, _subName + ".voc");
-                if (File.Exists(updateVocPath))
+                if (YARGFileSystem.FileExists(updateVocPath))
                 {
                     data = FixedArray.LoadFile(updateVocPath);
                 }
